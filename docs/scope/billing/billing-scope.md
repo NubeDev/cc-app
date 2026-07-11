@@ -1,6 +1,10 @@
 # Billing scope — invoicing & payments (phase 2)
 
-Status: scope (early — phase 2; recorded now so phase-1 data decisions don't preclude it).
+Status: **DEFERRED — build LAST (explicit product decision, 2026-07-11).** No billing work
+of any kind until every phase-1 persona use case (`../personas/`) has shipped. This file
+exists *only* so phase-1 data decisions don't preclude billing later (see §Non-goals: keep
+`receives_billing` on edges, keep schedules queryable, never merge guardians into implicit
+families). Do not build, scaffold, or scope-refine anything else in here yet.
 Owning repo: **this repo**, as its **own extension** `rust/extensions/care-billing/`
 (split from `care` deliberately: external provider, own secrets, own blast radius).
 

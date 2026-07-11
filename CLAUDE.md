@@ -45,6 +45,12 @@ lb's non-negotiables apply downstream:
    the one `authz/` scoping module, and every new verb ships a cross-family deny-test
    (`docs/scope/care/care-scope.md` §Testing). A leak across families is the worst bug this
    product can have.
+8. **English + Spanish from day one — a phase-1 MUST.** Every user-facing surface — UI,
+   invite emails, push notifications, verb-emitted text — ships 100% in `en` and `es` via
+   lb's multi-lang seam (`docs/scope/ui/i18n-scope.md` is the binding contract). No
+   hardcoded user-facing strings; records store keys/enums, catalogs store the words; the
+   CI catalog-completeness gate fails any key missing in either language. A surface that
+   can't render in both languages is not done.
 
 ## Where docs live
 
@@ -55,6 +61,11 @@ lb's non-negotiables apply downstream:
 - `docs/SCOPE-WRITTING.md` → write a scope; `docs/HOW-TO-CODE.md` → build one;
   `docs/FILE-LAYOUT.md` → before writing any code.
 - `docs/WORKFLOW-LB.md` — the cross-repo workflow (owning repo, local `[patch]`, tag→bump).
+- `docs/build/README.md` — **the execution runbook**: 11 gated milestones (lb-release →
+  hardening-launch) with entry/exit gates and subagent fan-out notes. Building anything?
+  Find your milestone there first.
+- `docs/scope/personas/` — per-persona (admin/teacher/guardian) use-case docs; the
+  acceptance checklist for what "done" means per user.
 
 ## Build / test commands
 

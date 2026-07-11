@@ -39,6 +39,10 @@ distracted parent and a busy room-leader can use one-handed. That is our UI bar.
   messaging, invites.
 - Everything reachable as MCP tools (`care.*`) so AI agents can drive the same surface
   (e.g. "summarize Leo's week for his mum").
+- **English + Spanish from day one — a MUST, not a stretch goal.** Every user-facing
+  surface (UI, invite emails, push notifications, domain-generated text) ships 100% in
+  `en` and `es`, via lb's multi-lang seam. Binding contract:
+  [`../ui/i18n-scope.md`](../ui/i18n-scope.md); enforced per build-milestone exit gate.
 - Every gap found in lb becomes an **upstream lb improvement**, never a product-side hack.
 
 ## Non-goals (deferred, not rejected)
@@ -88,6 +92,9 @@ no "family" primary key. The model is:
 single most important invariant in the product (CLAUDE.md rule 7).
 
 ## Personas → capability sets
+
+Per-persona use-case docs (the journeys over these cap sets) live in
+[`../personas/`](../personas/README.md) — `admin/`, `teacher/` (=staff), `guardian/`.
 
 lb capability-first, folded at login (like lb's `reach:` nav gating):
 
@@ -226,7 +233,8 @@ Build order — each lb dependency ships (tag) before its consumer starts:
 5. lb `files/media-scope.md` + `inbox-outbox/push-target-scope.md` →
    [`daily-feed-scope.md`](daily-feed-scope.md).
 6. [`messaging-scope.md`](messaging-scope.md) (shipped lb channels; one possible small ask).
-7. Phase 2: [`../billing/billing-scope.md`](../billing/billing-scope.md) (own extension).
+7. **Last — after everything above ships:** [`../billing/billing-scope.md`](../billing/billing-scope.md)
+   (own extension; explicitly deferred — see that file's status line).
 
 ## lb gaps (fix upstream, in this order)
 

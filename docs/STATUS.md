@@ -21,22 +21,33 @@ gaps** this product needs fixed upstream.
   `care/{care-authz,enrollment-invites,attendance,daily-feed,menus,messaging}-scope.md`,
   `ui/mobile-shell-scope.md`, `billing/billing-scope.md` (phase-2 placeholder-with-teeth).
   The master's "Scope map" is the build order.
-- **Upstream lb scopes written** (2026-07-11, in `NubeDev/lb`): `auth-caps/entity-scoped-grants`,
-  `auth-caps/invites`, `files/media`, `inbox-outbox/push-target`, `frontend/minimal-shell`
-  (+ lb `scope/README.md` indexed). Kiosk = existing lb `api-keys`; cap-freshness folded
-  into invites/access-console.
+- **Persona layer** (2026-07-11): `scope/personas/{admin,teacher,guardian}/` — one doc per
+  use case (6 admin, 4 teacher, 5 guardian), journeys over the feature scopes.
+- **Upstream lb gaps IMPLEMENTED** (2026-07-11, in `NubeDev/lb`, branch `updates-to-core`,
+  **not yet merged/tagged**): entity-scoped-grants (18c60cb), invites (62a3bf2), media
+  (f958f48), push-target (a629378), minimal-shell (3c20433) — 53 tests green. Remaining
+  before tag: wire Email/Push relay reactors at boot, rate-limit the public invite-accept
+  route. Kiosk = existing lb `api-keys`; cap-freshness folded into invites/access-console.
+- **i18n MUST recorded** (2026-07-11): English + Spanish 100% from day one —
+  `scope/ui/i18n-scope.md` (CLAUDE.md rule 8), gated per build milestone; lb multi-lang
+  coverage verification added to build milestone 00.
 - Session log: `sessions/care/care-scope-session.md`.
 
-## Next up (in order — mirrors the master scope's "Scope map")
+## Explicitly deferred
 
-1. **Build the lb gaps upstream**: entity-scoped grants (the blocker), then invites,
-   media, push-target, minimal-shell — each PR+tag per lb's HOW-TO-CODE, then bump here.
-2. **Boot the host** (`rust/node/`): `Cargo.toml` + `BootConfig` fill from `CC_*` env,
-   repo-anchored `.cc-app/` state — copy rubix-ai's proven shape.
-3. **`care` extension slice 1** (`rust/extensions/care/`): children + guardianship + rooms
-   CRUD with the `authz/` chokepoint (era 1) and the cross-family test matrix.
-4. **Thin mobile shell** (`ui/`): lb minimal-shell package if shipped, else the ~15-file
-   interim host per `scope/ui/mobile-shell-scope.md`.
+- **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
+  stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
+
+## Next up — execute the build runbook
+
+**The build plan is written: [`build/README.md`](build/README.md)** — 11 gated milestones
+(00 lb-release → 10 hardening-launch) with entry/exit checklists, subagent fan-out notes,
+and the parallelism map. A fresh session starts there: pick the first milestone whose
+entry gate is open (right now: **00-lb-release** — merge/tag `updates-to-core`, close the
+two pre-tag remainders, bump pins here), execute it per `HOW-TO-CODE.md`, tick its gates,
+move this file.
+
+Milestone progress: none started. 00 is next.
 
 ## Non-goals (unchanged)
 
