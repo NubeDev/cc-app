@@ -1,0 +1,208 @@
+//! `care.guardianship.update` — admin edits an existing edge's relationship
+//! and/or the five flags. Cap: `mcp:care.guardianship.update:call`. Admin-only.
+//!
+//! Update does NOT change reach by itself (reach is `live`, governed by
+//! `link`/`unlink`) — it edits the relationship + flags. BUT if an update
+//! re-affirms a previously-unlinked edge (`live` false → true), it re-derives
+//! the scoped grant (era 2), transactionally, exactly like `link`; and if it
+//! sets `live` true → false it removes the grant, exactly like `unlink`. The
+//! flags alone (`can_pickup`, …) touch no grant. This keeps the edge and its
+//! grant in lockstep no matter which verb changes liveness.
+
+use lb_auth::Principal;
+use lb_store::{read, write as store_write};
+
+use crate::authz::{grant, Chokepoint};
+use crate::center::Locale;
+use crate::guardianship::{edge_id, GuardianshipError, Relationship};
+use crate::i18n::t;
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateInput {
+    pub guardian_sub: String,
+    pub child_id: String,
+    /// New relationship key (optional — omitted leaves it unchanged).
+    #[serde(default)]
+    pub relationship: Option<String>,
+    /// Liveness (optional). Setting this re-derives / removes the grant.
+    #[serde(default)]
+    pub live: Option<bool>,
+    #[serde(default)]
+    pub can_pickup: Option<bool>,
+    #[serde(default)]
+    pub receives_daily_feed: Option<bool>,
+    #[serde(default)]
+    pub receives_billing: Option<bool>,
+    #[serde(default)]
+    pub emergency_contact: Option<bool>,
+    #[serde(default)]
+    pub custody_notes: Option<String>,
+    #[serde(default)]
+    pub locale: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct UpdateReply {
+    pub edge_id: String,
+    pub message: String,
+}
+
+pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<String, String> {
+    let _ = principal;
+    let parsed: UpdateInput = serde_json::from_str(input)
+        .map_err(|e| format!("invalid care.guardianship.update input: {e}"))?;
+    let locale = Locale::parse(parsed.locale.as_deref().unwrap_or("en")).unwrap_or(Locale::En);
+
+    let id = edge_id(&parsed.guardian_sub, &parsed.child_id);
+    let mut row = read(&cp.store, &cp.ws, "guardianship", &id)
+        .await
+        .map_err(|_| format!("{}", GuardianshipError::StoreDenied("update read".into())))?
+        .ok_or_else(|| format!("{}", GuardianshipError::NotFound(id.clone())))?;
+
+    let was_live = row.get("live").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    // Validate + apply the relationship change (if any).
+    if let Some(r) = &parsed.relationship {
+        let rel = Relationship::parse(r).map_err(|e| format!("{e}"))?;
+        row["relationship"] = serde_json::Value::String(rel.as_key().to_string());
+    }
+    // Apply flag changes (each optional — only overwrite what was sent).
+    for (key, val) in [
+        ("can_pickup", parsed.can_pickup),
+        ("receives_daily_feed", parsed.receives_daily_feed),
+        ("receives_billing", parsed.receives_billing),
+        ("emergency_contact", parsed.emergency_contact),
+    ] {
+        if let Some(b) = val {
+            row[key] = serde_json::Value::Bool(b);
+        }
+    }
+    if let Some(notes) = &parsed.custody_notes {
+        row["custody_notes"] = serde_json::Value::String(notes.clone());
+    }
+    let now_live = parsed.live.unwrap_or(was_live);
+    row["live"] = serde_json::Value::Bool(now_live);
+
+    // Persist the edited edge.
+    store_write(&cp.store, &cp.ws, "guardianship", &id, &row)
+        .await
+        .map_err(|e| format!("{}: {e}", GuardianshipError::StoreDenied("update write".into())))?;
+
+    // Keep the scoped grant in lockstep with a liveness transition (era 2).
+    if let Some(reach) = cp.reach() {
+        let res = match (was_live, now_live) {
+            (false, true) => {
+                grant::derive_reach(reach.client(), &parsed.guardian_sub, &parsed.child_id).await
+            }
+            (true, false) => {
+                grant::remove_reach(reach.client(), &parsed.guardian_sub, &parsed.child_id).await
+            }
+            _ => Ok(()), // no liveness change ⇒ no grant change
+        };
+        if let Err(e) = res {
+            // Roll the liveness flag back so edge + grant never diverge. Surface
+            // a failed rollback loudly via the typed `Diverged` error (same
+            // lockout/leak divergence as link/unlink; words in records.rs).
+            row["live"] = serde_json::Value::Bool(was_live);
+            let err = if store_write(&cp.store, &cp.ws, "guardianship", &id, &row)
+                .await
+                .is_ok()
+            {
+                GuardianshipError::GrantDerivationFailed(e.to_string())
+            } else {
+                GuardianshipError::GrantDerivationDiverged {
+                    edge: id.clone(),
+                    cause: e.to_string(),
+                }
+            };
+            return Err(err.to_string());
+        }
+    }
+
+    let reply = UpdateReply {
+        edge_id: id,
+        message: t(
+            locale,
+            "guardian.updated",
+            &[
+                ("guardian", &parsed.guardian_sub),
+                ("child", &parsed.child_id),
+            ],
+        ),
+    };
+    serde_json::to_string(&reply).map_err(|e| format!("serialize reply: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::guardianship::link;
+    use lb_auth::{mint, verify, Claims, Role, SigningKey};
+    use lb_store::{read, Store};
+    use std::sync::Arc;
+
+    fn admin(signing: &SigningKey, ws: &str) -> Principal {
+        let claims = Claims {
+            sub: "user:admin".into(),
+            ws: ws.into(),
+            role: Role::WorkspaceAdmin,
+            caps: vec![
+                "mcp:care.guardianship.link:call".into(),
+                "mcp:care.guardianship.update:call".into(),
+            ],
+            iat: 0,
+            exp: u64::MAX,
+            constraint: None,
+            run_id: None,
+        };
+        verify(signing, &mint(signing, &claims), 1).expect("verify")
+    }
+
+    #[tokio::test]
+    async fn update_edits_flags_without_touching_liveness() {
+        let store = Arc::new(Store::memory().await.unwrap());
+        let key = SigningKey::generate();
+        let cp = Chokepoint::new(store.clone(), "acme");
+        let a = admin(&key, "acme");
+
+        link::run(
+            &cp,
+            &a,
+            r#"{"guardian_sub":"user:sam","child_id":"child:leo","relationship":"father","can_pickup":false}"#,
+        )
+        .await
+        .expect("link");
+
+        run(
+            &cp,
+            &a,
+            r#"{"guardian_sub":"user:sam","child_id":"child:leo","can_pickup":true,"receives_billing":true}"#,
+        )
+        .await
+        .expect("update");
+
+        let row = read(&store, "acme", "guardianship", "user:sam::child:leo")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row["can_pickup"], true);
+        assert_eq!(row["receives_billing"], true);
+        assert_eq!(row["live"], true, "liveness untouched by a flag-only update");
+    }
+
+    #[tokio::test]
+    async fn update_of_a_missing_edge_is_not_found() {
+        let store = Arc::new(Store::memory().await.unwrap());
+        let key = SigningKey::generate();
+        let cp = Chokepoint::new(store, "acme");
+        let a = admin(&key, "acme");
+        let res = run(
+            &cp,
+            &a,
+            r#"{"guardian_sub":"user:x","child_id":"child:y","can_pickup":true}"#,
+        )
+        .await;
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("not found"));
+    }
+}

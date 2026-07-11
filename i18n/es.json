@@ -25,7 +25,21 @@
   "guardian": {
     "created": "Tutor {{name}} agregado.",
     "linked": "{{guardian}} vinculado con {{child}} como {{relationship}}.",
-    "unlinked": "{{guardian}} desvinculado de {{child}}."
+    "unlinked": "{{guardian}} desvinculado de {{child}}.",
+    "updated": "Vínculo entre {{guardian}} y {{child}} actualizado."
+  },
+  "enrollment": {
+    "created": "{{child}} inscrito en {{room}}.",
+    "waitlisted": "{{child}} agregado a la lista de espera de {{room}} en la posición {{position}}.",
+    "updated": "Inscripción de {{child}} actualizada.",
+    "withdrawn": "{{child}} dado de baja de {{room}}."
+  },
+  "relationship": {
+    "mother": "madre",
+    "father": "padre",
+    "grandparent": "abuelo/a",
+    "guardian": "tutor",
+    "other": "otro"
   },
   "common": {
     "yes": "Sí",

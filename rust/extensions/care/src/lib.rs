@@ -22,6 +22,11 @@
 
 pub mod authz;
 
+// The extension's user-facing string catalog (CLAUDE.md rule 8). Every
+// verb that emits a user-visible string resolves it via `i18n::t` — no
+// raw English literals (enforced by scripts/check-hardcoded-strings.sh).
+pub mod i18n;
+
 // The `call` and `ping` modules are `pub` to integration tests under
 // `tests/` so the matrix harness can exercise the dispatcher (the
 // harness asserts the `Tools::tools()` handshake + the cap-deny half
@@ -34,13 +39,13 @@ mod ping;
 // `mod.rs` is a barrel, `records.rs` is the orchestrator-owned schema,
 // each verb is its own file (`create.rs`, `get.rs`, `list.rs`, …).
 // The cross-family matrix harness (tests/) exercises the chokepoint
-// the same way for every noun.
+// the same way for every noun. All milestone-03 nouns now ship.
 pub mod center;
+pub mod child;
+pub mod enrollment;
+pub mod guardian;
+pub mod guardianship;
 pub mod room;
-// pub mod child;       // milestone 03 follow-up
-// pub mod guardian;    // milestone 03 follow-up
-// pub mod guardianship; // milestone 03 follow-up
-// pub mod enrollment;  // milestone 03 follow-up
 
 // re-exported by the binary; left out of the lib so the only platform
 // dependency callers see is the child-wire SDK name.

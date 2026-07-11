@@ -77,4 +77,12 @@ tokio = { version = "1", features = ["rt", "macros", "io-util", "io-std"] }
 # "no mocks"). Same git tag as lb-store/lb-auth (above) so a build +
 # test agree on the world.
 lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
-tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread"] }
+
+# The era-2 matrix test boots a REAL gateway (`lb-role-gateway`) on a real
+# TCP port and drives the chokepoint's host-callback path against it — the
+# same posture as lb's own `native_callback_test` (no mocks). `axum` serves
+# the real router; the `SidecarClient` (re-exported through `lb-ext-native`,
+# already a normal dep) makes real `reqwest` calls back into it.
+lb-role-gateway = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
+axum = "0.8"
+tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread", "net"] }

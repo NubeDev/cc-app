@@ -25,7 +25,21 @@
   "guardian": {
     "created": "Guardian {{name}} added.",
     "linked": "{{guardian}} linked to {{child}} as {{relationship}}.",
-    "unlinked": "{{guardian}} unlinked from {{child}}."
+    "unlinked": "{{guardian}} unlinked from {{child}}.",
+    "updated": "Link between {{guardian}} and {{child}} updated."
+  },
+  "enrollment": {
+    "created": "{{child}} enrolled in {{room}}.",
+    "waitlisted": "{{child}} added to the {{room}} waitlist at position {{position}}.",
+    "updated": "Enrollment for {{child}} updated.",
+    "withdrawn": "{{child}} withdrawn from {{room}}."
+  },
+  "relationship": {
+    "mother": "mother",
+    "father": "father",
+    "grandparent": "grandparent",
+    "guardian": "guardian",
+    "other": "other"
   },
   "common": {
     "yes": "Yes",

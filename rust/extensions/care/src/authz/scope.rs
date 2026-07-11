@@ -11,21 +11,18 @@
 //! All three resolve per call, per-request cache only. No cross-request
 //! cache (staleness = leak, see `mod.rs` doc).
 //!
-//! ## Era 2 (delegation seam — `resolve_era2_todo`)
+//! ## Era 2 (LIVE — `super::host_callback`)
 //!
-//! The lb scoped-grants verbs (`mcp:authz.check_scoped:call` and
-//! `mcp:authz.scope_filter:call`) are already wired in the patched lb
-//! source. The native child tier does NOT yet expose a host-callback
-//! client in `lb-ext-native`, so the binary can't invoke them directly.
-//!
-//! The seam is recorded here as a tracked TODO; the call sites in `mod.rs`
-//! keep the same shape so when the native host-callback lands, the swap is
-//! a one-file fix (replace `resolve_era1_*` with `resolve_era2_*`).
-//!
-//! When `lb-ext-native` adds a host-callback client (milestone 03+
-//! follow-up), wire [`resolve_era2_todo`] to call the host-callback and
-//! delete the era-1 path (the matrix harness already exercises the
-//! chokepoint surface — only the implementation under it changes).
+//! Era 2 is wired and live as of milestone 03 (node-v0.3.0 shipped the
+//! native host-callback client). The chokepoint delegates to lb's
+//! entity-scoped grants (`authz.check_scoped` / `authz.scope_filter`)
+//! through [`super::host_callback::ReachClient`] whenever a
+//! [`super::Chokepoint`] carries one (`with_host_callback`). The functions
+//! in THIS module are the era-1 FALLBACK — used when no host-callback client
+//! is present (store-only unit tests, or when lb's verbs aren't reachable).
+//! The call sites in `mod.rs` are identical across both eras (the whole
+//! point of the chokepoint), so which era runs is a construction choice, not
+//! a call-site change.
 
 use lb_auth::Principal;
 use lb_store::{list, read};
@@ -135,31 +132,6 @@ pub async fn resolve_era1_staff_rooms(cp: &Chokepoint, principal: &Principal) ->
                 .map(str::to_string)
         })
         .collect()
-}
-
-/// The era-2 delegation seam (tracked TODO).
-///
-/// When the native child has a host-callback client, this function will
-/// call `authz.check_scoped` (for `assert_reach` paths) or
-/// `authz.scope_filter` (for list paths) and translate the wall's
-/// decision into the chokepoint's typed return.
-///
-/// Today this is a stub that delegates to the era-1 path so the chokepoint
-/// still works end to end. The matrix harness exercises the era-1 path;
-/// the era-2 swap is a one-file fix in [`super::assert_reach`] and
-/// [`super::reachable_children`].
-#[allow(dead_code)]
-pub async fn resolve_era2_todo(
-    cp: &Chokepoint,
-    principal: &Principal,
-    child_id: &str,
-) -> Result<(), AuthzError> {
-    // Fall back to era 1 today. The wall already has `authz.check_scoped`
-    // available (verified via the dev login caps in milestone 01's
-    // round-trip), but invoking it requires a host-callback client the
-    // native tier doesn't ship yet. Milestone 03 follow-up: add
-    // `lb-ext-native::host_call` and wire it here.
-    resolve_era1_guardian(cp, principal, child_id).await
 }
 
 /// The deterministic edge id (so the matrix harness can seed it directly).
