@@ -19,10 +19,17 @@ as it ships — with the same call sites either way.
   (`reachable_rooms`), so there is one place where "who sees what" lives.
 - **Era 1 (now):** resolve from `guardianship`/staff-assignment records per call, cached
   per-request only (no cross-request cache — staleness = leak).
-- **Era 2 (lb entity-scoped grants):** on `guardianship.link/unlink`, the extension derives
-  scoped grants via the granted `grants.*` verbs; `authz/` delegates to the SDK's
-  `authz.check_scoped`/`authz.scope_filter`. Call sites unchanged — that is the point of
-  the chokepoint.
+- **Era 2 (lb entity-scoped grants) — READ path LIVE (2026-07-12, milestone 03).** `authz/`
+  delegates `assert_reach`/`reachable_children` to the SDK's
+  `authz.check_scoped`/`authz.scope_filter` over the node-v0.3.0 native host-callback when a
+  `ReachClient` is present; call sites unchanged — the point of the chokepoint. Proven end
+  to end over a real gateway (`tests/matrix_era2.rs`). The DERIVATION half (on
+  `guardianship.link/unlink`, minting scoped grants via the granted `grants.*` verbs) is
+  **wired but blocked**: lb's `/mcp/call` dispatcher routes only `authz.*`, not `grants.*`,
+  so a native extension cannot mint a grant over the callback yet (upstream lb fix — see
+  `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`). **Until lb routes
+  `grants.*`, era-1 (store edges) stays the live reach path** — the documented fallback
+  below; the era-2 read delegation + derivation code go fully live on the pin bump.
 - **Admins pass, but visibly:** admin reach is a role check through the same module (one
   audit point), never a bypass at the call site.
 

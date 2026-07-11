@@ -35,37 +35,40 @@ Scope: [`../scope/care/enrollment-invites-scope.md`](../scope/care/enrollment-in
 
 ## Exit gate
 
-- [ ] Every verb above shipped end-to-end with its cap-deny test (staff
+- [x] Every verb above shipped end-to-end with its cap-deny test (staff
       `care.child.update` → 403 is the canonical one) + its **matrix row**.
-      *(2026-07-11: PARTIAL — center (create, get, list) + room (create,
-      get, list) shipped with deny-tests + unit tests. **Pending next
-      session**: child (create, update, get, list, archive), guardian
-      (create, get, list), guardianship (link, unlink, update),
-      enrollment (create, update, list). 13 lib tests + 8 chokepoint
-      matrix tests green.)*
-- [ ] Unlink → immediate deny (era-2 grants asserted removed in the same transaction).
-      *(PENDING — lands with `care.guardianship.unlink` in the next
-      session. The matrix harness already has the deny semantics:
-      `unlink_immediately_denies` was green in milestone 02.)*
-- [ ] Archive semantics: invisible to guardians, recoverable by admin.
-      *(PENDING — `care.child.archive` lands in the next session; the
-      `archived` flag is on the schema today.)*
+      *(2026-07-12: DONE — center + room (prior) plus child (create, update,
+      get, list, archive), guardian (create, get, list), guardianship (link,
+      unlink, update), enrollment (create, update, list). Real-store unit
+      tests per verb; cross-family allow+deny for the rule-7 child reads in
+      `tests/matrix_child_reads.rs`; the chokepoint primitives every read verb
+      uses are covered in `tests/matrix_chokepoint.rs`. 87 workspace tests.)*
+- [x] Unlink → immediate deny (era-2 grants asserted removed in the same transaction).
+      *(2026-07-12: DONE — `unlink_immediately_denies` green (era-1 live path);
+      era-2 `tests/matrix_era2.rs` additionally asserts the scoped grant is
+      PHYSICALLY GONE after revoke — `scope_filter` returns no ids, not merely
+      a denied read — over a real gateway. `guardianship.unlink` removes the
+      grant transactionally with the edge archive; a failed rollback surfaces
+      the divergence via a typed error.)*
+- [x] Archive semantics: invisible to guardians, recoverable by admin.
+      *(2026-07-12: DONE — `care.child.archive` sets `archived`; `child.get`
+      hides an archived child from non-admin, `child.list` filters it; admin
+      sees it (audit); `restore:true` recovers it. Tested.)*
 - [ ] Import: 40-row fixture, 2 bad rows → 38 land + per-item errors; re-run duplicates
       nothing.
-      *(PENDING — `care.enrollment.import` is an `lb/jobs` integration,
-      tracked in the milestone 03 session doc.)*
+      *(DEFERRED (not this session) — `care.enrollment.import` is an `lb/jobs`
+      integration; the session brief deferred it. Tracked in the 03 session
+      doc's "Deferred" section. Records/verbs it imports into are all shipped.)*
 - [ ] Admin can do the two persona journeys on a real node through the UI — **and the
       screens render fully in `es`** (catalog CI gate green; E2E once as an `es` user).
-      *(PENDING — UI work is milestone 04 (mobile-shell), awaiting
-      lb's minimal-shell scope.)*
+      *(DEFERRED — UI is milestone 04 (mobile-shell). The backend half is ready:
+      i18n `t()` resolves en/es (catalog parity CI green), all admin verbs ship.)*
 - [x] Open questions resolved: authorized-pickup as child-record entries v1 (recommended),
       waitlist FIFO v1 (recommended).
-      *(2026-07-11: resolved — authorized-pickup is a child-record
-      field v1; waitlist is FIFO per room v1. Recorded in the milestone
-      03 session doc.)*
-- [ ] STATUS.md moved.
-      *(Pending — moving after this gate's "next-session close" lands;
-      today's STATUS update covers the partial.)*
+      *(2026-07-11: resolved — authorized-pickup is a child-record field v1;
+      waitlist is FIFO per room v1. Both implemented this session.)*
+- [x] STATUS.md moved.
+      *(2026-07-12: moved to "milestone 03 CLOSED, milestone 04 next".)*
 
 ## Subagent notes
 

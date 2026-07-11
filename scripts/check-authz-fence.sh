@@ -25,6 +25,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AUTHZ_REL="rust/extensions/care/src/authz/"
 
+# The `guardianship/` verb directory is the OTHER blessed toucher of the
+# `guardianship` table — but for a different reason than authz/. rule 7 forbids
+# a verb RESOLVING REACH by reading the edge table itself (that's the
+# chokepoint's job); it does NOT forbid the edge's own CRUD verbs
+# (`link`/`unlink`/`update`) from writing the table they OWN. Those verbs are
+# the source of truth the chokepoint reads. A reach-resolution leak would be a
+# `guardianship` read in a NON-owning verb (e.g. child/list.rs querying edges
+# instead of calling `reachable_children`) — still caught, because only these
+# two directories are exempt. Keep this list tight: adding a new dir here must
+# be justified as "owns the edge table," never "is convenient."
+GUARDIANSHIP_REL="rust/extensions/care/src/guardianship/"
+
 # Tracked source files in the care extension, minus authz/ itself, the
 # tests/ directory (which legitimately seeds records via the real write
 # path — that's what the matrix harness IS), and generated/target
@@ -37,6 +49,7 @@ if cd "$ROOT" && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     'rust/extensions/care/src/*.rs' \
     'rust/extensions/care/src/**/*.rs' 2>/dev/null \
     | grep -v "^$AUTHZ_REL" \
+    | grep -v "^$GUARDIANSHIP_REL" \
     | grep -v '/target/' || true)
 fi
 # Fallback / supplement: walk the on-disk source tree so the fence also
@@ -48,6 +61,7 @@ if [ "${#files[@]}" -eq 0 ] || [ "${1:-}" = "--all" ]; then
     -name "*.rs" -type f 2>/dev/null \
     | sed "s#^$ROOT/##" \
     | grep -v "^$AUTHZ_REL" \
+    | grep -v "^$GUARDIANSHIP_REL" \
     | grep -v '/target/' || true)
 fi
 
