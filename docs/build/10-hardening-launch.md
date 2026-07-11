@@ -15,8 +15,9 @@ and promotes the docs. Nothing new ships here except fixes.
       cross-family (Sam/Ana/Mia's-mum over every verb, SSE, channels, media URLs).
 - [ ] **Persona acceptance pass:** walk all 15 use-case docs in
       [`../scope/personas/`](../scope/personas/README.md) on a real node, on a real phone
-      (360px), as the real persona. Each doc's deny/edge cases observed. This is the
-      product sign-off checklist.
+      (360px), as the real persona — **and again on a laptop viewport (~1280px), and in
+      both dark and light themes** (CLAUDE.md rule 9). Each doc's deny/edge cases
+      observed. This is the product sign-off checklist.
 - [ ] **The full Spanish pass (the day-one MUST,
       [`../scope/ui/i18n-scope.md`](../scope/ui/i18n-scope.md)):** the same 15-use-case
       walk performed entirely as `es` users — every screen, the invite email, the

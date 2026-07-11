@@ -51,6 +51,17 @@ lb's non-negotiables apply downstream:
    hardcoded user-facing strings; records store keys/enums, catalogs store the words; the
    CI catalog-completeness gate fails any key missing in either language. A surface that
    can't render in both languages is not done.
+9. **UI stack: shadcn/ui, mobile-first + laptop-good, dark + light mode.** shadcn/ui is
+   the only component library (on Tailwind via `extTailwindPreset()`); phone (360px) is
+   the design target but every screen must look designed at laptop width; dark/light
+   follows the system with a persisted user toggle. Host owns `:root{}`/`.dark{}` and the
+   variable swap; extension UI uses **semantic tokens only** — a hardcoded color in ext
+   UI is a review-blocking defect. **Design language: modern iOS** (large-title
+   hierarchy, bottom tabs + sheets, system font stack, soft depth — see root
+   `DESIGN.md`/`PRODUCT.md`, the binding visual/strategy contracts). UI work goes
+   through the **impeccable skill** (`/impeccable craft` to build, `critique`/`polish`
+   before a milestone's UI exit gate) — it auto-loads those two files. Mechanics:
+   `docs/scope/ui/mobile-shell-scope.md` §"UI stack".
 
 ## Where docs live
 

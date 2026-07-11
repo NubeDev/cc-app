@@ -90,6 +90,17 @@ milestone level; parallelism lives *inside* milestones (below).
   and the milestone's E2E run once with an `es`-locale user. Invite emails (05) and push
   bodies (08) are localized server-side. Retrofitting i18n is misery — it is cheaper at
   every milestone than at the end, which is why it gates each one.
+- **UI stack is pinned (CLAUDE.md rule 9):** shadcn/ui components only; mobile-first
+  (360px) **and** laptop-good (~1280px); dark + light mode (system default, persisted
+  toggle, host-owned `.dark` variable swap, semantic tokens only in ext UI). Every UI
+  milestone's Playwright pass runs **both viewports and both themes**; a hardcoded color
+  or a non-shadcn widget for something shadcn ships fails review. **Design language:
+  modern iOS** — root `PRODUCT.md` + `DESIGN.md` are the binding contracts. UI work runs
+  through the **impeccable skill**: `/impeccable craft <screen>` to build,
+  `/impeccable critique` + `polish` on the milestone's screens **before** its UI exit
+  gate is claimed (it auto-loads PRODUCT.md/DESIGN.md; re-run
+  `/impeccable document` at milestone 04 to replace the seed DESIGN.md with real
+  tokens).
 - **Rule 7 (guardian isolation) is enforced from milestone 02 on** — no care verb ever
   lands without its cross-family matrix row. A verb without a matrix row fails the gate.
 - **Open questions get resolved at the milestone that hits them**, recorded in the scope

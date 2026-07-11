@@ -1,0 +1,52 @@
+# cc-node — the cc-app host binary. A thin boot shim.
+#
+# The product's binary (milestone 01, docs/build/01-host-boot.md): it
+# fills lb's `BootConfig` at the binary boundary from `CC_*` env, boots
+# the embedded lb node through the supported `boot_full` seam, and
+# serves the gateway until the process is stopped.
+#
+# No product logic lives here — the host is generic lb embeds. The
+# domain is the `care` extension (rust/extensions/care), reachable
+# through MCP like every other ext. Embedding grants no extra caps
+# (CLAUDE.md rule 10: no special-casing of lb).
+#
+# The boot ritual itself (filling BootConfig from env, defaulting every
+# field so bare `cargo run` boots) lives in `boot.rs` — one responsibility
+# per file (docs/FILE-LAYOUT.md §2). Pattern is the rubix-ai boot shim,
+# copied for sameness (not invented).
+
+[package]
+name = "cc-node"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "cc-node"
+path = "src/main.rs"
+
+[dependencies]
+# The embed seam (WORKFLOW-LB.md §1). The binary builds against the
+# published SDKs only; the git-ignored .cargo/config.toml [patch] block
+# redirects this dep to ../lb/rust/node while milestone 00 executes.
+# Drop the patch + pin the tag here when the tag lands.
+lb-node = { workspace = true }
+
+# The async runtime + error type at the binary boundary. Mirrors the
+# rubix-ai host: a thin `#[tokio::main]` driving the boot seam.
+tokio = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+# Tests don't pull any lb crates here on purpose: the boot test asserts the embed
+# seam (`boot_full` + `BootConfig` + `RunningNode`) is wired end to end under our
+# config shape. Pulling `lb-host` / `lb-auth` as dev-deps would resolve to the
+# git-tag source's own `lb-store` instance — a DIFFERENT crate instance than the
+# one the patched `../lb/rust/node` carries internally — and the compiler would
+# refuse to bridge the two `Store` / `SigningKey` types. The deeper wall tests
+# live upstream in lb's own `embed_test.rs` (same `BootConfig` shape, same wall
+# semantics, satisfied at the lb tag).
+serde_json = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

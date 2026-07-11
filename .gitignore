@@ -1,0 +1,28 @@
+# --- Build outputs -----------------------------------------------------------
+**/target/
+**/Cargo.lock
+
+# --- Node-local on-disk state (the ONE store + ext-UI serve dir) ------------
+# Repo-anchored under .cc-app/, same posture as lb's own .lb-dev and
+# rubix-ai's .rubix-ai/. Threaded into BootConfig at the binary boundary
+# (docs/WORKFLOW-LB.md §3, CLAUDE.md rule 5). NEVER committed.
+.cc-app/
+.cargo/config.toml
+
+# --- zig toolchain cache ----------------------------------------------------
+# The .cargo/config.toml redirects ZIG_LOCAL_CACHE_DIR to a writable
+# scratch dir because /home/user/.cache/zig is bind-mounted read-only
+# on this sandbox box (zig fails with "unable to create compilation:
+# ReadOnlyFileSystem" otherwise). Two flavours land:
+#   1. The root-relative `zig-cache/` (the `relative = true` form of
+#      ZIG_LOCAL_CACHE_DIR — cwd at compile time).
+#   2. Any other zig cache the toolchain creates (e.g. inside rust/target/).
+# Always git-ignored — never committed.
+**/zig-cache/
+/zig-cache/
+
+# --- Tooling noise -----------------------------------------------------------
+**/*.swp
+**/.DS_Store
+**/.idea/
+**/.vscode/

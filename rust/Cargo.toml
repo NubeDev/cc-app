@@ -1,0 +1,54 @@
+# cc-app — the Rust workspace.
+#
+# Two crates today (milestone 01 + 02):
+#   node   — the boot shim binary. Embeds the lb core via `lb-node`
+#            (BootConfig + boot_full), the same way NubeIO/rubix-ai does.
+#            No product logic; reads CC_* env at the binary boundary
+#            (CLAUDE.md rule 5) and fills BootConfig from it.
+#   extensions/care — the single backend extension owning the whole
+#            childcare domain and 100% of the product UI. Native tier
+#            (Tier-2 sidecar); talks the published `lb-ext-native` SDK
+#            (the child wire), nothing from lb internals (rule 10).
+#
+# Future: per-milestone extensions land here as additional workspace
+# members, all following the same shape.
+[workspace]
+resolver = "2"
+members = ["node", "extensions/care"]
+
+[workspace.package]
+edition = "2021"
+license = "Proprietary"
+rust-version = "1.90"
+publish = false
+
+[workspace.dependencies]
+# lb-node — the embed seam. Pinned to a published `node-v*` tag from
+# NubeDev/lb (the rules in WORKFLOW-LB.md §4); today the
+# git-ignored .cargo/config.toml [patch] redirects it at the sibling
+# ../lb/rust/node checkout while milestone 00 (lb-release) is executing
+# in a separate session. Drop the [patch] and pin the tag here when the
+# tag lands. NEVER commit a path/[patch] reference (WORKFLOW-LB.md §3).
+# TEMP (sandbox, no network): we pin to the highest node-v* tag we have
+# in the cargo cache (`node-v0.1.13`) so the source resolves without a
+# fetch; the [patch] then redirects the resolved source to the local
+# checkout. In a connected env, leave the placeholder tag here and let
+# the [patch] do its job once the new lb-release tag exists.
+lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+
+# lb-ext-native — the ONLY platform dep an in-tree extension may carry
+# (WORKFLOW-LB.md §2). The child-side stdio wire (init/health/call/shutdown)
+# + the Tools trait + serve_stdio + the PROTOCOL_MAJOR handshake gate. A
+# separate SDK repo (NubeDev/lb-ext-sdk); we pin a released sdk-v* tag.
+# NOT patched — this is a published SDK; the lb-repo work in flight does
+# not affect it (verified in ../lb-ext-sdk at tag sdk-v0.2.1).
+lb-ext-native = { git = "https://github.com/NubeDev/lb-ext-sdk", tag = "sdk-v0.2.1" }
+
+# The binary-boundary runtime + error type. The host is a thin tokio app.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+anyhow = "1"
+
+# Extension-side deps: serde for tool args/results. Each tool body's tests
+# add `tokio` with `rt-multi-thread` for the boot-test harness.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

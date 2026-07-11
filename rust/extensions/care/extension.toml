@@ -1,0 +1,65 @@
+# `care` — the single backend extension owning the childcare domain.
+#
+# A self-contained Tier-2 native extension (host-metrics's shape, the
+# canonical "why native" reference). The host spawns + supervises us over
+# stdio via the `lb-ext-native` SDK; we talk the child wire
+# (init/health/call/shutdown) and serve the `care.*` tool set.
+#
+# Today: one verb (`care.ping`) — the loop proof, plus the authz
+# chokepoint's two-call API as a Rust module the matrix harness exercises.
+# Per-verb folders (center/room/child/…) wire up in later milestones.
+[extension]
+id          = "care"
+version     = "0.1.0"
+name        = "Care"
+description = "The single backend extension owning the childcare domain (children, guardians, edges, rooms, attendance, daily feed, menus, messaging) and 100% of the product UI. Sacred: every read verb passes through the in-repo authz/ chokepoint (CLAUDE.md rule 7)."
+
+[runtime]
+tier        = "native"                          # Tier 2: an OS child with its own PID (§6.3)
+world       = "lazybones:ext/extension@0.2.0"   # the ABI-gate world the host checks at load
+placement   = "either"
+
+# The native supervision recipe the host turns into an `lb_supervisor::Spec`. `exec` is resolved by the
+# host against the per-workspace install dir (`$LB_DIR/native/<ws>/care/`) where the published binary
+# is written.
+[native]
+exec        = "care"
+args        = []
+restart     = "on-crash"
+
+[capabilities]
+# The tools this extension exposes. The host re-checks every cap per call;
+# the install grant is `requested ∩ admin_approved`. Today: just `care.ping`.
+# As milestone 03+ verbs land, add their `mcp:care.<verb>:call` caps here.
+#
+# The authz chokepoint's reads of `guardianship` / `staff_assignment` are
+# server-side state — they need NO host-side cap (the chokepoint is the
+# second gate, not a cap; the cap that the verb body needs is the one
+# named below).
+request = [
+    "mcp:care.ping:call",
+]
+
+# The native tools the sidecar serves (bare names; the host owns the
+# `care.` prefix and the install grant's `mcp:care.<name>:call` form).
+[[tools]]
+name        = "ping"
+description = "Workspace-tagged snapshot served by the care sidecar — proves the Tier-2 backend tool is reachable through the cap gate (milestone 02 loop proof)."
+
+# The PAGE this extension contributes to the sidebar (ui-federation).
+# Shipped from milestone 04 (the mobile-shell UI work, which depends on
+# lb's minimal-shell scope that is churning in milestone 00). The
+# `entry` is the ESM remote the shell dynamic-imports, served under the
+# gateway's `/extensions/care/ui/` route. Today the UI folder is a stub
+# (no `defineRemote` yet); the UI bundle lands with milestone 04.
+[ui]
+entry = "remoteEntry.js"
+label = "Care"
+icon  = "users"
+# The verb scopes the page reaches. Today: just `care.ping`. The list
+# grows with each verb; the page's bridge filter narrows to
+# `scope ∩ install grant`, and the host re-checks each call.
+scope = ["care.ping"]
+
+[visibility]
+class = "public"

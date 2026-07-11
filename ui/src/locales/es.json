@@ -1,0 +1,12 @@
+{
+  "app.title": "Cuidado infantil",
+  "auth.welcome": "Bienvenido",
+  "auth.signIn": "Iniciar sesión",
+  "auth.signOut": "Cerrar sesión",
+  "auth.email": "Correo electrónico",
+  "auth.password": "Contraseña",
+  "workspace.pick": "Elige un espacio de trabajo",
+  "shell.loading": "Cargando…",
+  "error.offline": "Parece que estás sin conexión.",
+  "error.denied": "No tienes acceso a esto."
+}

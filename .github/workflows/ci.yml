@@ -1,0 +1,137 @@
+# CI — the S0 gate for cc-app (mirrors lb's `rust/.github/workflows/ci.yml`).
+#
+# Four jobs on every push + PR:
+#   - file-layout        the FILE-LAYOUT ≤400-line check (the cheap, always-on gate)
+#   - host-build-test    cargo build + test the cc-node host binary (milestone 01+)
+#   - care-build-test    cargo build + test the in-tree care extension (milestone 02+)
+#   - host-boot-script   smoke-run the cc-node binary with the documented env (milestone 01+)
+#
+# NOTE on lb-node sourcing: the workspace pins `lb-node` to a published `node-v*`
+# tag (WORKFLOW-LB.md §4) and the git-ignored `.cargo/config.toml` `[patch]`
+# redirects it at the sibling `../lb/rust/node` checkout while milestone 00's
+# tag ships. CI here runs against the tag, NOT the patch — the patch is a
+# machine-local dev-only path, and `cargo build --workspace` clean from tags
+# alone is the "am I on releases?" check.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Sandbox parity (mirrors the git-ignored .cargo/config.toml's [env] block —
+  # CI is hermetic and has its own writability story, so we set the scratch
+  # dir explicitly here rather than relying on the git-ignored local config).
+  ZIG_LOCAL_CACHE_DIR: /tmp/cc-ci-zig-cache
+  ZIG_GLOBAL_CACHE_DIR: /tmp/cc-ci-zig-cache
+
+jobs:
+  # The cheap, always-on gate (FILE-LAYOUT ≤400-line enforcement).
+  file-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: FILE-LAYOUT size check (≤400 lines)
+        run: bash scripts/check-file-size.sh
+
+  # Build + test the cc-node host binary (the boot shim + the boot_test).
+  host-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build the host binary
+        working-directory: rust
+        run: cargo build -p cc-node
+      - name: Test the host binary
+        working-directory: rust
+        run: cargo test -p cc-node
+      - name: Clippy (host)
+        working-directory: rust
+        run: cargo clippy -p cc-node -- -D warnings
+      - name: Format check (host)
+        working-directory: rust
+        run: cargo fmt --all --check
+
+  # Build + test the in-tree care extension (milestone 02 adds these tests;
+  # the job runs green as soon as `cargo build -p care` compiles cleanly).
+  care-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build the care extension
+        working-directory: rust
+        run: cargo build -p care
+      - name: Test the care extension
+        working-directory: rust
+        run: cargo test -p care
+      - name: Clippy (care)
+        working-directory: rust
+        run: cargo clippy -p care -- -D warnings
+      - name: Format check (care)
+        working-directory: rust
+        run: cargo fmt --all --check
+
+  # Authz fence (milestone 02): a `guardianship` read outside authz/
+  # fails the build (CLAUDE.md rule 7 — the leak guard).
+  care-authz-fence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authz fence (no guardianship reads outside authz/)
+        run: bash scripts/check-authz-fence.sh
+
+  # i18n catalog parity (CLAUDE.md rule 8 / i18n-scope §Enforcement):
+  # every leaf key present in one locale must be present in every
+  # other, and `_meta.locale` must match the filename. A key added
+  # in one catalog without the other fails the build.
+  i18n-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: i18n catalog parity (en ↔ es)
+        run: bash scripts/check-i18n-parity.sh
+
+  # Smoke-run the host binary against the documented env vars. Mirrors the
+  # manual round-trip in sessions/node/01-host-boot-session.md; CI catches a
+  # regression in the boot ritual without needing a live test against lb.
+  host-boot-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the host binary
+        working-directory: rust
+        run: cargo build -p cc-node
+      - name: Smoke-boot the host (5s) + curl /workspaces (unauth → 401)
+        working-directory: rust
+        run: |
+          rm -rf /tmp/cc-smoke-store /tmp/cc-smoke-ui
+          CC_STORE_PATH=/tmp/cc-smoke-store \
+          CC_EXT_UI_DIR=/tmp/cc-smoke-ui \
+          CC_GATEWAY_ADDR=127.0.0.1:28999 \
+          CC_SEED_USER=user:ada \
+          CC_WORKSPACE=cc-smoke \
+            ./target/debug/cc-node &
+          BOOT_PID=$!
+          sleep 5
+          curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:28999/workspaces | grep -q 401 \
+            && echo "OK: gateway serves + wall refused unauth" \
+            || (echo "FAIL: gateway did not answer /workspaces with 401"; kill $BOOT_PID; exit 1)
+          kill $BOOT_PID || true

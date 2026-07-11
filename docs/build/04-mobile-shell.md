@@ -26,13 +26,19 @@ Scope: [`../scope/ui/mobile-shell-scope.md`](../scope/ui/mobile-shell-scope.md).
       installability.
 - [ ] **Shell chrome in `en` + `es`** (login, workspace pick, errors, accept page) via
       lb's catalog mechanism; locale = user preference → browser language → `en`.
+- [ ] **Theme foundation (CLAUDE.md rule 9):** shadcn/ui for the shell chrome; dark/light
+      via the minimal-shell theme provider — system default, user toggle, persisted;
+      host-side `:root{}`/`.dark{}` shadcn variable swap that propagates into the mounted
+      extension through the SDK token contract (verify the seam here — it's what every
+      later UI milestone builds on; a hole is an upstream minimal-shell/ui-sdk fix).
 
 ## Exit gate
 
 - [ ] Phone browser → login as seeded admin → care ext page mounted full-screen; zero lb
       chrome; PWA installs.
 - [ ] Playwright (real node): login → mount → SSE connected; CSS isolation (host styles
-      byte-identical after ext mount — the SDK contract test).
+      byte-identical after ext mount — the SDK contract test); **both themes** (toggle
+      flips shell + mounted ext together; persists across reload) at **360px and 1280px**.
 - [ ] `ui/` contains **no** shell logic beyond config (review the diff against that
       sentence).
 - [ ] STATUS.md moved.

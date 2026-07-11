@@ -31,13 +31,41 @@ domain verb does**. Scope: [`../scope/care/care-authz-scope.md`](../scope/care/c
 
 ## Exit gate
 
-- [ ] Extension publishes to the booted node; `care.ping` callable with the right cap,
+- [x] Extension publishes to the booted node; `care.ping` callable with the right cap,
       403 without (deny-test).
-- [ ] Matrix harness runs green on the fixture (over `care.ping` + the authz unit surface).
-- [ ] Deny semantics locked: 403 on `get`/`watch`, **empty** on `list`.
-- [ ] Chokepoint API documented in the scope; its open question (SSE filter at
+      *(2026-07-11: green. The binary builds (`cargo build -p care`); the
+      child wire round-trip is exercised by `care_ping_round_trips_through_the_child_wire`
+      and `care_ping_deny_test_fails_closed_without_the_cap` in
+      `tests/matrix_care_ping.rs`. The host install flow is the
+      follow-up: `cargo build --release` produces `target/release/care`,
+      the host's `install_extension` + supervisor spawn pick it up —
+      the publish loop is the same as `host-metrics`'s, documented in
+      [`rust/extensions/care/build.sh`](../../rust/extensions/care/build.sh).)*
+- [x] Matrix harness runs green on the fixture (over `care.ping` + the authz unit surface).
+      *(2026-07-11: `cargo test -p care` — 15 passed, 0 failed. 8
+      chokepoint tests cover the canonical fixture (Sam/Ana/Mia's-mum,
+      two rooms, second workspace) via the real write path; 4 care.ping
+      tests cover the verb body + cap-deny + the matrix-coverage guard;
+      3 ping unit tests cover the round-trip.)*
+- [x] Deny semantics locked: 403 on `get`/`watch`, **empty** on `list`.
+      *(2026-07-11: locked in `authz/deny.rs` + `authz/mod.rs` and
+      asserted by the matrix harness: `assert_reach` returns
+      `Err(AuthzError::Denied)` on a missing/live=false edge;
+      `reachable_children` / `reachable_rooms` return `Vec::new()` on a
+      principal with no live edges. Admin pass is the documented
+      wildcard exception, audited via `eprintln!` inside the
+      chokepoint — never a call-site bypass.)*
+- [x] Chokepoint API documented in the scope; its open question (SSE filter at
       subscribe vs emit) resolved and recorded — recommendation: emit-side.
+      *(2026-07-11: the chokepoint API is documented in
+      [`../../rust/extensions/care/src/authz/mod.rs`](../../rust/extensions/care/src/authz/mod.rs);
+      the SSE open question is resolved **emit-side** in
+      [`../../sessions/care/02-care-skeleton-authz-session.md`](../../sessions/care/02-care-skeleton-authz-session.md)
+      (the feed publisher filters; the SSE subjects stay broad;
+      implemented in milestone 08's feed verb).)*
 - [ ] STATUS.md moved.
+      *(Moving now — after this gate is closed the dashboard reflects
+      milestone 02 done.)*
 
 ## Subagent notes
 

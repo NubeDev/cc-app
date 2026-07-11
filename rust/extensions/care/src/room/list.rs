@@ -1,0 +1,179 @@
+//! `care.room.get` + `care.room.list` — read paths (admin wildcard; staff
+//! filtered to rooms they reach via `staff_assignment`).
+
+use lb_auth::Principal;
+use lb_store::read;
+
+use crate::authz::{assert_reach, reachable_rooms, Chokepoint};
+use crate::room::Room;
+
+// ----- get ---------------------------------------------------------------
+
+#[derive(Debug, serde::Deserialize)]
+pub struct GetInput {
+    pub id: String,
+}
+
+pub async fn get(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<String, String> {
+    let parsed: GetInput =
+        serde_json::from_str(input).map_err(|e| format!("invalid care.room.get input: {e}"))?;
+    assert_reach(cp, principal, &parsed.id)
+        .await
+        .map_err(|e| format!("{e}"))?;
+
+    let row = read(&cp.store, &cp.ws, "room", &parsed.id)
+        .await
+        .map_err(|_| "store denied the room read".to_string())?;
+    let value = row.ok_or_else(|| "room not found".to_string())?;
+    let room: Room = serde_json::from_value(value).map_err(|e| format!("deserialize: {e}"))?;
+    serde_json::to_string(&room).map_err(|e| format!("serialize: {e}"))
+}
+
+// ----- list --------------------------------------------------------------
+
+pub async fn list(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result<String, String> {
+    let is_admin = principal.role() == lb_auth::Role::WorkspaceAdmin
+        || principal.role() == lb_auth::Role::SuperAdmin;
+    if !is_admin {
+        // Staff: filter to the rooms the chokepoint resolves.
+        let rooms = reachable_rooms(cp, principal).await;
+        if rooms.is_empty() || rooms == vec!["*".to_string()] {
+            return Ok("[]".to_string());
+        }
+        // Per-room read for the resolved set. An empty / wildcard
+        // returns an empty list; otherwise we read each room row.
+        let mut out: Vec<Room> = Vec::new();
+        for id in rooms {
+            if let Ok(Some(v)) = read(&cp.store, &cp.ws, "room", &id).await {
+                if let Ok(r) = serde_json::from_value::<Room>(v) {
+                    out.push(r);
+                }
+            }
+        }
+        return serde_json::to_string(&out).map_err(|e| format!("serialize: {e}"));
+    }
+
+    // Admin path: list every room.
+    let mut resp = cp
+        .store
+        .query_ws(&cp.ws, "SELECT * FROM room", vec![])
+        .await
+        .map_err(|e| format!("store denied: {e}"))?;
+    // Take by field name ("data") so the SurrealDB Row deserializer knows
+    // what shape to expect. See center/list.rs for the full rationale.
+    let data_rows: Vec<serde_json::Value> = resp
+        .take::<Vec<serde_json::Value>>((0, "data"))
+        .unwrap_or_default();
+    let mut out: Vec<Room> = Vec::new();
+    for row in data_rows {
+        if let Ok(r) = serde_json::from_value::<Room>(row) {
+            out.push(r);
+        }
+    }
+    serde_json::to_string(&out).map_err(|e| format!("serialize: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::room::create as room_create;
+    use crate::room::records::Room;
+    use lb_auth::{mint, verify, Claims, Role, SigningKey};
+    use lb_store::{create as store_create, write as store_write, Store};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    fn admin(signing: &SigningKey, ws: &str) -> Principal {
+        let claims = Claims {
+            sub: "user:admin".into(),
+            ws: ws.into(),
+            role: Role::WorkspaceAdmin,
+            caps: vec![
+                "mcp:care.room.create:call".into(),
+                "mcp:care.room.list:call".into(),
+                "mcp:care.room.get:call".into(),
+            ],
+            iat: 0,
+            exp: u64::MAX,
+            constraint: None,
+            run_id: None,
+        };
+        verify(signing, &mint(signing, &claims), 1).expect("verify")
+    }
+
+    #[tokio::test]
+    async fn admin_list_returns_all_rooms() {
+        let store = Arc::new(Store::memory().await.unwrap());
+        let key = SigningKey::generate();
+        let cp = Chokepoint::new(store, "acme");
+        let p = admin(&key, "acme");
+        room_create::run(&cp, &p, r#"{"id":"possums","name":"P","center_id":"main"}"#)
+            .await
+            .unwrap();
+        room_create::run(&cp, &p, r#"{"id":"koalas","name":"K","center_id":"main"}"#)
+            .await
+            .unwrap();
+        let out = list(&cp, &p, "").await.unwrap();
+        let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
+        assert_eq!(v.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn staff_list_filters_to_assigned_rooms() {
+        let store = Arc::new(Store::memory().await.unwrap());
+        let key = SigningKey::generate();
+        let cp = Chokepoint::new(store.clone(), "acme");
+        let ap = admin(&key, "acme");
+        room_create::run(
+            &cp,
+            &ap,
+            r#"{"id":"possums","name":"P","center_id":"main"}"#,
+        )
+        .await
+        .unwrap();
+        room_create::run(&cp, &ap, r#"{"id":"koalas","name":"K","center_id":"main"}"#)
+            .await
+            .unwrap();
+
+        // Sam is assigned to Possums only.
+        store_create(
+            &store,
+            "acme",
+            "staff_assignment",
+            "user:sam::possums",
+            &json!({"staff_sub":"user:sam","room_id":"possums"}),
+        )
+        .await
+        .unwrap();
+        store_write(
+            &store,
+            "acme",
+            "room",
+            "possums",
+            &serde_json::to_value(Room {
+                name: "P".into(),
+                center_id: "main".into(),
+                archived: false,
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let claims = Claims {
+            sub: "user:sam".into(),
+            ws: "acme".into(),
+            role: Role::Member,
+            caps: vec!["mcp:care.room.list:call".into()],
+            iat: 0,
+            exp: u64::MAX,
+            constraint: None,
+            run_id: None,
+        };
+        let sam = verify(&key, &mint(&key, &claims), 1).unwrap();
+        let out = list(&cp, &sam, "").await.unwrap();
+        let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
+        assert_eq!(v.len(), 1, "sam sees only Possums");
+        assert_eq!(v[0]["name"], "P");
+    }
+}

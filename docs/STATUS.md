@@ -6,12 +6,13 @@ _The single "where are we" dashboard. Read at the start of a session; update at 
 
 ## Current state
 
-**MILESTONES 01 + 02 CLOSED.** Two of eleven milestones are shipped (the
-host boot shim + the care extension skeleton + the authz chokepoint +
-the cross-family matrix harness). The host boots a real embedded lb
-node from a fresh checkout; the authz chokepoint is the ONE place
-guardian reach is resolved; `cargo test --workspace` is **17 passed,
-0 failed**.
+**MILESTONES 01 + 02 CLOSED, MILESTONE 03 PARTIAL.** Three of eleven
+milestones are shipped — the host boot shim, the care extension skeleton
++ the authz chokepoint, and the bottom-up enrollment start (orchestrator-
+owned schemas + 2 nouns + the i18n bootstrap). The host boots a real
+embedded lb node from a fresh checkout; the authz chokepoint is the ONE
+place guardian reach is resolved; the i18n catalogs are parity-checked
+end to end. `cargo test --workspace` is **30 passed, 0 failed**.
 
 > **Sandbox caveat (read this first).** This work ran in a sandbox
 > where `.git` is bind-mounted read-only — the per-milestone commits
@@ -76,6 +77,18 @@ guardian reach is resolved; `cargo test --workspace` is **17 passed,
   host-callback client in `lb-ext-native`, so the wire-up is a tracked
   TODO (milestone 03 follow-up); the era-2 swap is a one-file fix in
   `rust/extensions/care/src/authz/mod.rs`.
+- **Milestone 03 — enrollment PARTIAL** (2026-07-11): orchestrator-owned
+  schemas for `Center` (incl. `Locale` enum) + `Room`; **5 verbs** ship
+  (`care.center.create|get|list`, `care.room.create|get|list`) with
+  cap-deny tests + unit tests. **i18n bootstrap**: `i18n/en.json` +
+  `i18n/es.json` (23 leaf keys, parity-checked); `scripts/check-i18n-
+  parity.sh` (hard gate); `scripts/check-hardcoded-strings.sh`
+  (warning today — flips to hard once the catalog wire-up lands).
+  13 lib tests on top of the 17 from milestones 01+02 = **30 total**.
+  **Pending next session**: child / guardian / guardianship / enrollment
+  records + verbs + the `t(locale, key, vars)` catalog helper that
+  flips the hardcoded-string lint to `exit 1`. Session doc:
+  [`sessions/care/03-enrollment-session.md`](sessions/care/03-enrollment-session.md).
 
 ## Deferred (per the milestones, not yet started)
 
@@ -85,14 +98,13 @@ guardian reach is resolved; `cargo test --workspace` is **17 passed,
   rebuild clean. Two lines. Two checkboxes in `01-host-boot.md` +
   `02-care-skeleton-authz.md` left UNTICKED with a note "pending
   milestone 00 tags".
-- **Milestone 03 — enrollment**: next. Records (center/room/child/
-  guardian/edge/…) + verb-per-file CRUD + the i18n bootstrap (en/es
-  catalog + CI parity + hardcoded-string lint). The orchestrator fixes
-  schemas FIRST; subagents handle one verb-family at a time.
-- **Milestones 04 + 05 + 06 + 07 + 08 + 09 + 10**: per the build map;
-  UI (milestone 04) waits on the in-flight `minimal-shell` lb work
-  before it starts; invites (05) wait on `lb/invites` finishing; the
-  rest follow.
+- **Milestone 03 — enrollment (rest of)**: child / guardian /
+  guardianship / enrollment records + verbs; the `t(locale, key,
+  vars)` catalog wire-up (the milestone 03 follow-up that flips the
+  hardcoded-string lint to hard).
+- **Milestone 04 — mobile-shell**: waiting on the in-flight
+  `minimal-shell` lb work.
+- **Milestones 05 + 06 + 07 + 08 + 09 + 10**: per the build map.
 - **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
   stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
 
@@ -113,9 +125,9 @@ No path/`[patch]` reference is committed — the file is git-ignored.
 
 ## Next up
 
-**Milestone 03 — enrollment (records + verbs + i18n bootstrap).**
-Schemas first (orchestrator-owned — never a subagent), then one verb
-per file with the deny-test + matrix-row shape from milestone 02.
+**Finish milestone 03** (child/guardian/guardianship/enrollment verbs
++ the i18n `t()` wire-up), then milestone 04 (mobile-shell) after
+lb's minimal-shell scope lands.
 
 ## Non-goals (unchanged)
 

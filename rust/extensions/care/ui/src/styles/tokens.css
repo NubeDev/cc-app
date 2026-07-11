@@ -1,0 +1,8 @@
+/* tokens.css — design tokens only. NO @tailwind base / :root{} / .dark{} here
+   (CLAUDE.md rule 6; SDK owns scoping). Per-milestone surface-specific
+   utilities live in their components via Tailwind. */
+
+:root {
+  --care-radius: 0.75rem;
+  --care-touch-target: 2.75rem; /* mobile one-handed reach */
+}

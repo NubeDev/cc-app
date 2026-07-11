@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "scope": "cc-app care extension (CLAUDE.md rule 8 / scope/ui/i18n-scope.md)",
+    "locale": "es",
+    "fallback": "en"
+  },
+  "authz": {
+    "denied_get": "No tienes acceso a este registro.",
+    "denied_list_empty": "No hay registros para mostrar.",
+    "denied_unlink": "Este vínculo ya no existe."
+  },
+  "center": {
+    "created": "Centro \"{{name}}\" creado.",
+    "archived": "Centro \"{{name}}\" archivado.",
+    "default_locale_invalid": "El idioma \"{{locale}}\" no es compatible. Elige inglés (en) o español (es)."
+  },
+  "room": {
+    "created": "Sala \"{{name}}\" agregada.",
+    "archived": "Sala \"{{name}}\" archivada."
+  },
+  "child": {
+    "created": "Perfil de {{name}} creado.",
+    "archived": "Perfil de {{name}} archivado."
+  },
+  "guardian": {
+    "created": "Tutor {{name}} agregado.",
+    "linked": "{{guardian}} vinculado con {{child}} como {{relationship}}.",
+    "unlinked": "{{guardian}} desvinculado de {{child}}."
+  },
+  "common": {
+    "yes": "Sí",
+    "no": "No",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "back": "Atrás",
+    "loading": "Cargando…",
+    "error_generic": "Algo salió mal. Inténtalo de nuevo."
+  }
+}

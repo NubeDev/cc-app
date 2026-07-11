@@ -11,6 +11,31 @@ extension's federated UI — mobile-first, Tailwind + shadcn tokens, `defineRemo
 
 ## Goals
 
+- **UI stack (binding, phase 1):**
+  - **Design language: modern iOS, on shadcn.** The product should feel as considered as
+    a first-party Apple app — large-title hierarchy on the system font stack, bottom tab
+    bar + bottom sheets on phones, continuous rounded corners, hairline separators, soft
+    depth, translucent bar chrome, fluid ease-out motion — expressed entirely through
+    shadcn tokens/components, never fake native chrome. The binding visual contract is
+    the root **`DESIGN.md`** (strategy in **`PRODUCT.md`**); UI sessions design and
+    review through the **impeccable skill** (`/impeccable craft|critique|polish`), which
+    auto-loads both files.
+  - **shadcn/ui is THE component library** — every interactive surface (buttons, forms,
+    dialogs, sheets, tabs, tables, toasts) is a shadcn/ui component on Tailwind via
+    `extTailwindPreset()`; no second component library, no hand-rolled equivalents of
+    things shadcn ships. Accessibility comes from its Radix primitives — keep it.
+  - **Mobile-first, laptop-good:** phone (360px) is the design target for guardian +
+    staff, but every screen must *look designed* — not merely survive — at laptop width
+    (~1280px): content max-widths, multi-column where it earns it (admin dashboard, menu
+    planner week grid), no stretched-phone-UI. Admin surfaces get a real desktop layout
+    pass in v1 (resolves the open question below: yes).
+  - **Dark + light mode from day one:** default follows the system
+    (`prefers-color-scheme`), user toggle in the shell, choice persisted per user. The
+    **host** owns the `.dark` class and the shadcn CSS-variable swap (`:root{}`/`.dark{}`
+    live host-side only); the **extension** consumes semantic tokens exclusively
+    (`bg-background`, `text-muted-foreground`, …) so both themes propagate through the
+    SDK's CSS-isolation seam with zero ext-side theme code. A hardcoded hex/`bg-white` in
+    ext UI is a review-blocking defect. Every screen ships legible in both themes.
 - **Shell (`ui/`):** consume lb's minimal-shell package the moment it ships; config only
   (gateway URL, home = the care ext page, branding blob). If care's build outpaces the lb
   package, `ui/` starts as the *smallest possible* interim host (login + mount + SSE,
@@ -81,8 +106,11 @@ screen.
 ## Open questions
 
 - Persona tabs: one page with cap-driven tab sets (recommended) or three ext pages?
-- Do admin surfaces get a desktop-width layout pass v1 or ship responsive-only?
-- Which shadcn theme tokens become the product brand (blocked on naming/branding)?
+- ~~Do admin surfaces get a desktop-width layout pass v1?~~ **Resolved (2026-07-11): yes**
+  — see §Goals "UI stack": mobile-first, but laptop-good is binding for every persona.
+- Which shadcn theme tokens become the product brand (blocked on naming/branding)? Until
+  decided: ship on shadcn's neutral default palette — both themes work out of the box and
+  a brand later is a variable swap, not a rework.
 
 ## Related
 

@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "scope": "cc-app care extension (CLAUDE.md rule 8 / scope/ui/i18n-scope.md)",
+    "locale": "en",
+    "fallback": "en"
+  },
+  "authz": {
+    "denied_get": "You don't have access to this record.",
+    "denied_list_empty": "No records to show.",
+    "denied_unlink": "This link no longer exists."
+  },
+  "center": {
+    "created": "Center \"{{name}}\" created.",
+    "archived": "Center \"{{name}}\" archived.",
+    "default_locale_invalid": "Locale \"{{locale}}\" is not supported. Choose English (en) or Spanish (es)."
+  },
+  "room": {
+    "created": "Room \"{{name}}\" added.",
+    "archived": "Room \"{{name}}\" archived."
+  },
+  "child": {
+    "created": "Child profile for {{name}} created.",
+    "archived": "Profile for {{name}} archived."
+  },
+  "guardian": {
+    "created": "Guardian {{name}} added.",
+    "linked": "{{guardian}} linked to {{child}} as {{relationship}}.",
+    "unlinked": "{{guardian}} unlinked from {{child}}."
+  },
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "loading": "Loading…",
+    "error_generic": "Something went wrong. Please try again."
+  }
+}

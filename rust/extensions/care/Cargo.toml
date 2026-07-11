@@ -1,0 +1,80 @@
+# care — the single backend extension owning the childcare domain.
+#
+# Tier: native (Tier-2 sidecar) — a real host-platform binary the host
+# spawns + supervises over stdio. Same shape as `NubeIO/rubix-ai`'s
+# `host-metrics` extension (the canonical "why native" reference), copied
+# for sameness: published SDK only (`lb-ext-native`), no lb-repo access
+# (WORKFLOW-LB.md §2, rule 10). A native tier was chosen over WASM
+# because the care verb bodies need direct OS-level + DB access
+# (real SurrealDB stores via the host callback, channel provisioning,
+# file IO for media + invites) that the wasm sandbox denies — same
+# justification host-metrics uses.
+#
+# Boot shape:
+#   - [[bin]] name = "care"           the native sidecar the host spawns
+#   - [lib] name = "care"             so the matrix harness + per-verb
+#                                     unit tests can link the same bodies
+#                                     (folder-of-verbs layout, one
+#                                     responsibility per file, FILE-LAYOUT)
+#
+# Build: ./build.sh — emits target/release/care (the native child binary
+# the host spawns + supervises) and ui/dist/remoteEntry.js (the
+# extension's UI bundle, shipped flat into the node's ext-ui-dir).
+[package]
+name = "care"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "care"
+path = "src/lib.rs"
+
+[[bin]]
+name = "care"
+path = "src/main.rs"
+
+[dependencies]
+# THE native child API — the ONLY thing this ext imports from the platform
+# (WORKFLOW-LB.md §2): the child-side stdio wire (init/health/call/shutdown),
+# the `Tools` trait, `serve_stdio`, and the `PROTOCOL_MAJOR` handshake gate.
+# Pinned to a PUBLISHED sdk-v* tag on the SDK repo (NubeDev/lb-ext-sdk).
+# NOT patched — this is the published SDK and is not affected by the
+# in-flight milestone 00 work in the lb repo.
+lb-ext-native = { workspace = true }
+
+# The authz chokepoint reads `guardianship` / `staff_assignment` records
+# from the lb store directly (era 1). The store is the published seam
+# (workspace-scoped SurrealDB); same git tag as `lb-node` resolves to
+# (and the [patch] in .cargo/config.toml redirects).
+lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+
+# The authz chokepoint takes a `Principal` for its role check; that's
+# the only place below the boot seam we read it from.
+lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+
+# Per-tool args/results + the authz chokepoint's principal payload.
+serde = { workspace = true }
+serde_json = { workspace = true }
+# SurrealDB value type — needed by the list verbs to deserialize the
+# `SELECT *` envelope (the rows include typed `id: Thing` fields that
+# serialize as a JSON enum; we read them as `surrealdb::Value` and convert
+# to JSON). A transitive dep of `lb-store`; pinned to the same version
+# so a build + a test agree on the world.
+surrealdb = "2"
+
+# Own tokio: the child reads/writes its OWN stdio (host crates never
+# touch process stdio, so the workspace tokio omits `io-std`). A child
+# binary sets its own runtime features — it is a leaf, nothing depends
+# on it. Mirrors host-metrics / echo-sidecar.
+tokio = { version = "1", features = ["rt", "macros", "io-util", "io-std"] }
+
+[dev-dependencies]
+# Tests use the host's store + auth crates to seed the matrix harness
+# fixture + assert deny semantics — the real infra (CLAUDE.md rule 4
+# "no mocks"). Same git tag as lb-store/lb-auth (above) so a build +
+# test agree on the world.
+lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread"] }

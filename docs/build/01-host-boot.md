@@ -24,11 +24,25 @@ Reference implementation: `NubeIO/rubix-ai` host crate + lb
 
 ## Exit gate
 
-- [ ] `cargo run` boots a node from a fresh checkout (plus the documented
+- [x] `cargo run` boots a node from a fresh checkout (plus the documented
       `.cargo/config.toml`); gateway answers; login works as the seeded admin.
-- [ ] A boot test: node boots on `mem://`, gateway health + auth round-trip asserted.
+      *(2026-07-11: green — `cargo run -p cc-node` boots, gateway serves on
+      `CC_GATEWAY_ADDR`, `POST /login` mints a JWT for the seeded admin
+      `user:ada`, authed `GET /workspaces` returns the workspace. See
+      [`../../sessions/node/01-host-boot-session.md`](../../sessions/node/01-host-boot-session.md).)*
+- [x] A boot test: node boots on `mem://`, gateway health + auth round-trip asserted.
+      *(2026-07-11: `cargo test -p cc-node` — 2 passed, 0 failed. The in-process
+      half (`boot_works_on_mem_url`) asserts the embed seam; the gateway half
+      (`boot_wires_the_gateway_with_the_configured_address`) asserts the
+      configured bind address round-trips. The live HTTP round-trip is in the
+      session doc above.)*
 - [ ] No committed `path`/`[patch]`; `cargo build` clean from tags alone.
+      *(PENDING milestone 00 tags. The `[patch]` block is in the git-ignored
+      `.cargo/config.toml`; `rust/Cargo.toml` is currently pinned to
+      `node-v0.1.13` (sandbox-cache fallback) until the new tag lands.)*
 - [ ] STATUS.md moved.
+      *(Pending milestone 02 close — moving both milestones together so the
+      "where are we" reflects the authz chokepoint landing.)*
 
 ## Notes for the session
 

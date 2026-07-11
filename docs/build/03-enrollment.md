@@ -37,15 +37,35 @@ Scope: [`../scope/care/enrollment-invites-scope.md`](../scope/care/enrollment-in
 
 - [ ] Every verb above shipped end-to-end with its cap-deny test (staff
       `care.child.update` → 403 is the canonical one) + its **matrix row**.
+      *(2026-07-11: PARTIAL — center (create, get, list) + room (create,
+      get, list) shipped with deny-tests + unit tests. **Pending next
+      session**: child (create, update, get, list, archive), guardian
+      (create, get, list), guardianship (link, unlink, update),
+      enrollment (create, update, list). 13 lib tests + 8 chokepoint
+      matrix tests green.)*
 - [ ] Unlink → immediate deny (era-2 grants asserted removed in the same transaction).
+      *(PENDING — lands with `care.guardianship.unlink` in the next
+      session. The matrix harness already has the deny semantics:
+      `unlink_immediately_denies` was green in milestone 02.)*
 - [ ] Archive semantics: invisible to guardians, recoverable by admin.
+      *(PENDING — `care.child.archive` lands in the next session; the
+      `archived` flag is on the schema today.)*
 - [ ] Import: 40-row fixture, 2 bad rows → 38 land + per-item errors; re-run duplicates
       nothing.
+      *(PENDING — `care.enrollment.import` is an `lb/jobs` integration,
+      tracked in the milestone 03 session doc.)*
 - [ ] Admin can do the two persona journeys on a real node through the UI — **and the
       screens render fully in `es`** (catalog CI gate green; E2E once as an `es` user).
-- [ ] Open questions resolved: authorized-pickup as child-record entries v1 (recommended),
+      *(PENDING — UI work is milestone 04 (mobile-shell), awaiting
+      lb's minimal-shell scope.)*
+- [x] Open questions resolved: authorized-pickup as child-record entries v1 (recommended),
       waitlist FIFO v1 (recommended).
+      *(2026-07-11: resolved — authorized-pickup is a child-record
+      field v1; waitlist is FIFO per room v1. Recorded in the milestone
+      03 session doc.)*
 - [ ] STATUS.md moved.
+      *(Pending — moving after this gate's "next-session close" lands;
+      today's STATUS update covers the partial.)*
 
 ## Subagent notes
 
