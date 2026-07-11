@@ -29,9 +29,8 @@ path = "src/main.rs"
 
 [dependencies]
 # The embed seam (WORKFLOW-LB.md §1). The binary builds against the
-# published SDKs only; the git-ignored .cargo/config.toml [patch] block
-# redirects this dep to ../lb/rust/node while milestone 00 executes.
-# Drop the patch + pin the tag here when the tag lands.
+# published git tag only — `node-v0.3.0`, pinned in the workspace
+# Cargo.toml. Milestone 00 landed, so there is no [patch] override.
 lb-node = { workspace = true }
 
 # The async runtime + error type at the binary boundary. Mirrors the

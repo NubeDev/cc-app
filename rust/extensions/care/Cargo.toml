@@ -46,14 +46,14 @@ path = "src/main.rs"
 lb-ext-native = { workspace = true }
 
 # The authz chokepoint reads `guardianship` / `staff_assignment` records
-# from the lb store directly (era 1). The store is the published seam
-# (workspace-scoped SurrealDB); same git tag as `lb-node` resolves to
-# (and the [patch] in .cargo/config.toml redirects).
-lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+# from the lb store directly (era 1, now the documented fallback path).
+# The store is the published seam (workspace-scoped SurrealDB); same git
+# tag as `lb-node` resolves to — `node-v0.3.0`, pinned, no [patch].
+lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
 
 # The authz chokepoint takes a `Principal` for its role check; that's
 # the only place below the boot seam we read it from.
-lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
 
 # Per-tool args/results + the authz chokepoint's principal payload.
 serde = { workspace = true }
@@ -76,5 +76,5 @@ tokio = { version = "1", features = ["rt", "macros", "io-util", "io-std"] }
 # fixture + assert deny semantics — the real infra (CLAUDE.md rule 4
 # "no mocks"). Same git tag as lb-store/lb-auth (above) so a build +
 # test agree on the world.
-lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
 tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread"] }

@@ -24,25 +24,23 @@ publish = false
 
 [workspace.dependencies]
 # lb-node — the embed seam. Pinned to a published `node-v*` tag from
-# NubeDev/lb (the rules in WORKFLOW-LB.md §4); today the
-# git-ignored .cargo/config.toml [patch] redirects it at the sibling
-# ../lb/rust/node checkout while milestone 00 (lb-release) is executing
-# in a separate session. Drop the [patch] and pin the tag here when the
-# tag lands. NEVER commit a path/[patch] reference (WORKFLOW-LB.md §3).
-# TEMP (sandbox, no network): we pin to the highest node-v* tag we have
-# in the cargo cache (`node-v0.1.13`) so the source resolves without a
-# fetch; the [patch] then redirects the resolved source to the local
-# checkout. In a connected env, leave the placeholder tag here and let
-# the [patch] do its job once the new lb-release tag exists.
-lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.1.13" }
+# NubeDev/lb (the rules in WORKFLOW-LB.md §4). Milestone 00 has landed:
+# lb released `node-v0.3.0` (the native host-callback client the era-2
+# wiring needs — a native extension can now call granted host MCP verbs,
+# incl. `authz.check_scoped`/`authz.scope_filter`, back into the core).
+# This is a REAL tag pin: the build resolves it straight from GitHub with
+# NO [patch] override (that block is dropped from .cargo/config.toml).
+# NEVER commit a path/[patch] reference (WORKFLOW-LB.md §3).
+lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
 
 # lb-ext-native — the ONLY platform dep an in-tree extension may carry
 # (WORKFLOW-LB.md §2). The child-side stdio wire (init/health/call/shutdown)
-# + the Tools trait + serve_stdio + the PROTOCOL_MAJOR handshake gate. A
-# separate SDK repo (NubeDev/lb-ext-sdk); we pin a released sdk-v* tag.
-# NOT patched — this is a published SDK; the lb-repo work in flight does
-# not affect it (verified in ../lb-ext-sdk at tag sdk-v0.2.1).
-lb-ext-native = { git = "https://github.com/NubeDev/lb-ext-sdk", tag = "sdk-v0.2.1" }
+# + the Tools trait + serve_stdio + the PROTOCOL_MAJOR handshake gate, AND
+# (from sdk-v0.3.0) the re-exported native host-callback client
+# (`SidecarClient` / `Config` / `CallError`) — one dependency for both
+# directions of the wire. A separate SDK repo (NubeDev/lb-ext-sdk); we pin
+# the released `sdk-v0.3.0` tag. NOT patched — this is a published SDK.
+lb-ext-native = { git = "https://github.com/NubeDev/lb-ext-sdk", tag = "sdk-v0.3.0" }
 
 # The binary-boundary runtime + error type. The host is a thin tokio app.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
