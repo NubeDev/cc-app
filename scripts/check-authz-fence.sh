@@ -15,31 +15,44 @@
 set -euo pipefail
 
 # Resolve repo root + the authz/ directory we treat as the one blessed
-# reader of `guardianship`.
+# reader of `guardianship`. The exclusion pattern is REPO-RELATIVE
+# (`rust/extensions/care/src/authz/`) so it matches identically whether a
+# file path came from `git ls-files` (repo-relative) or from `find`
+# (absolute, under $ROOT). A prior version excluded against the ABSOLUTE
+# `$AUTHZ_DIR/`, which silently failed to filter the repo-relative
+# `git ls-files` output — the CI branch — so the fence false-flagged the
+# blessed chokepoint file `authz/scope.rs` (milestone-03 fence fix).
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-AUTHZ_DIR="$ROOT/rust/extensions/care/src/authz"
+AUTHZ_REL="rust/extensions/care/src/authz/"
 
 # Tracked source files in the care extension, minus authz/ itself, the
 # tests/ directory (which legitimately seeds records via the real write
 # path — that's what the matrix harness IS), and generated/target
 # scaffolding. Use git ls-files when available (the CI posture); fall
 # back to a direct `find` so the fence also works in a sandbox where
-# the working tree isn't committed yet.
+# the working tree isn't committed yet. Both branches normalize paths to
+# repo-relative before excluding, so the one `$AUTHZ_REL` filter applies.
 if cd "$ROOT" && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   mapfile -t files < <(cd "$ROOT" && git ls-files \
     'rust/extensions/care/src/*.rs' \
     'rust/extensions/care/src/**/*.rs' 2>/dev/null \
-    | grep -v "$AUTHZ_DIR/" \
+    | grep -v "^$AUTHZ_REL" \
     | grep -v '/target/' || true)
 fi
 # Fallback / supplement: walk the on-disk source tree so the fence also
 # fires on uncommitted files (the sandbox posture + a developer's WIP).
+# `find` emits absolute paths; strip the `$ROOT/` prefix so the SAME
+# repo-relative `$AUTHZ_REL` exclusion applies.
 if [ "${#files[@]}" -eq 0 ] || [ "${1:-}" = "--all" ]; then
   mapfile -t files < <(find "$ROOT/rust/extensions/care/src" \
     -name "*.rs" -type f 2>/dev/null \
-    | grep -v "$AUTHZ_DIR/" \
+    | sed "s#^$ROOT/##" \
+    | grep -v "^$AUTHZ_REL" \
     | grep -v '/target/' || true)
 fi
+
+# All paths are now repo-relative; resolve them from $ROOT.
+cd "$ROOT"
 
 fail=0
 hits=0
