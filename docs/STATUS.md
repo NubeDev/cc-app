@@ -31,6 +31,9 @@ gaps** this product needs fixed upstream.
 - **i18n MUST recorded** (2026-07-11): English + Spanish 100% from day one —
   `scope/ui/i18n-scope.md` (CLAUDE.md rule 8), gated per build milestone; lb multi-lang
   coverage verification added to build milestone 00.
+- **Repo skeleton scaffolded** (2026-07-11): directory tree under `rust/node/`,
+  `rust/extensions/care/` (authz chokepoint + folder-of-verbs per FILE-LAYOUT),
+  `rust/extensions/care/ui/`, and `ui/` shell, with per-dir READMEs. No source code.
 - Session log: `sessions/care/care-scope-session.md`.
 
 ## Explicitly deferred
