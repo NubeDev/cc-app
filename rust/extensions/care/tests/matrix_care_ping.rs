@@ -19,7 +19,29 @@ use common::WS;
 /// Today the matrix is one row (one verb: `care.ping`), satisfied by the
 /// dedicated tests in this file. As each milestone 03+ verb ships, add
 /// a test for it here AND add its name to `COVERED_VERBS`.
-const COVERED_VERBS: &[&str] = &["ping"];
+const COVERED_VERBS: &[&str] = &[
+    "ping",
+    "center.create",
+    "center.get",
+    "center.list",
+    "room.create",
+    "room.get",
+    "room.list",
+    "child.create",
+    "child.get",
+    "child.list",
+    "child.update",
+    "child.archive",
+    "guardian.create",
+    "guardian.get",
+    "guardian.list",
+    "guardianship.link",
+    "guardianship.unlink",
+    "guardianship.update",
+    "enrollment.create",
+    "enrollment.list",
+    "enrollment.update",
+];
 
 #[test]
 fn assert_matrix_covers_all_verbs() {

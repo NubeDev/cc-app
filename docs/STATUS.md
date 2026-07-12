@@ -6,17 +6,18 @@ _The single "where are we" dashboard. Read at the start of a session; update at 
 
 ## Current state
 
-**MILESTONES 00 + 01 + 02 + 03 CLOSED, MILESTONE 04 NEXT.** Four of eleven
-milestones are shipped — lb-release (the pin bump), the host boot shim, the
-care extension skeleton + the authz chokepoint, and the full enrollment roster
-(children, guardians, guardianship edges + the five flags, centers, rooms,
-enrollment + waitlist FIFO). The host boots a real embedded lb node from a
-fresh checkout; the authz chokepoint is the ONE place guardian reach is
-resolved and now **delegates its READ path to lb's entity-scoped grants over
-the native host-callback** (era-2, proven over a real gateway); the i18n `t()`
-catalog resolves en/es and the hardcoded-string lint is hard. `cargo test
---workspace` is **87 passed, 0 failed**, clean from git tags alone (no
-`[patch]`).
+**MILESTONES 00 + 01 + 02 + 03 + 04 CLOSED, MILESTONE 05 NEXT.** The
+mobile shell + the first real care admin screens ship: every m03 verb
+(center / room / child / guardian / guardianship / enrollment) is
+wired onto the live `Tools::call` dispatcher (the "honest half-wired
+vs whole-contract" gap from m03 step C is closed), and the thin
+`ui/` shell mounts the care ext with `defineRemote(...)` over a
+phone-first + laptop-good shadcn surface in dark + light, en + es.
+The host-owned `:root{}`/`.dark{}` shadcn variable swap propagates into
+the ext through the SDK CSS-isolation seam. `cargo test --workspace`
+is **89 passed, 0 failed, 1 ignored** (the ignored test is the
+regression for the upstream lb `grants.*` fix — runs with `--ignored`
+once the patch is on disk). All 4 CI fences hard-green.
 
 ## What's real
 
@@ -71,11 +72,12 @@ catalog resolves en/es and the hardcoded-string lint is hard. `cargo test
   `authz.scope_filter` over the node-v0.3.0 native host-callback
   (`SidecarClient`, re-exported from `lb-ext-native`), call sites unchanged.
   Proven end to end over a REAL booted gateway (`tests/matrix_era2.rs`). The
-  DERIVATION half (minting scoped grants on `guardianship.link/unlink` via
+  DERIVATION half (minting scoped grants on `guardianship.link`/`unlink` via
   `grants.assign`/`revoke`) is **wired but blocked** by an lb gap: `/mcp/call`
   routes only `authz.*`, not `grants.*`, so a native ext can't mint a grant
   over the callback yet. **Until lb routes `grants.*`, era-1 (store edges) is
-  the live reach path** (`docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`;
+  the live reach path**
+  (`docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`;
   an additive one-arm lb fix → tag → pin bump).
 - **Milestone 03 — enrollment CLOSED** (2026-07-12): the full roster ships —
   orchestrator-owned schemas + verb-per-file bodies (≤400 lines) for
@@ -87,10 +89,41 @@ catalog resolves en/es and the hardcoded-string lint is hard. `cargo test
   the embedded catalogs (33 leaf keys, parity-checked); the hardcoded-string
   lint is now **hard** (`exit 1`, scoped to genuine chrome). Era-2 read
   delegation is live (above). An adversarial review found + we fixed a
-  `child.list` reach/id-form lockout (allow-case tests added). **DEFERRED:**
-  `care.enrollment.import` (lb/jobs), the admin UI (m04). `cargo test
-  --workspace` **87 passed**. Session doc:
+  `child.list` reach/id-form lockout (allow-case tests added). Session doc:
   [`sessions/care/03-enrollment-session.md`](sessions/care/03-enrollment-session.md).
+- **Milestone 04 — mobile-shell CLOSED** (2026-07-12): the **wire-in** lands
+  every m03 verb onto the live `Tools::call` dispatcher via `Care::boot(env)`
+  (reads the supervisor-injected `LB_EXT_*` env, builds the `SidecarClient`,
+  opens the store). A booted-node integration test (`tests/live_wire.rs`,
+  4 green) proves `care.ping` + `care.center.create` round-trip end to end
+  through the wired-in constructor. The **shell** (`ui/`) implements the
+  login → workspace-pick → `ExtMountPage` flow with shadcn-styled inputs,
+  a host-owned `:root{}`/`.dark{}` shadcn variable swap, and a top-bar
+  EN/ES + light/dark toggle that propagates into the ext. The **care ext
+  UI** (`rust/extensions/care/ui/`) now ships four admin surfaces against
+  the m03 verbs: **Centers/Rooms list + create**, **Child editor** (safety
+  data: DOB + allergies + medical notes + photo consent, with a `⚠` row
+  badge for any allergies), **Family/Edges editor** (the five flags:
+  `can_pickup` / `receives_daily_feed` / `receives_billing` /
+  `emergency_contact` / `custody_notes`), **Waitlist** (FIFO per room
+  ordered by `waitlist_seq`). **en + es parity** at 96 keys each (i18n
+  gate hard-green for both shell + ext), **mobile + laptop** viewports
+  encoded via content max-widths + bottom-tab layout, **dark + light**
+  via the host-owned `.dark` variable swap that propagates through the
+  SDK CSS-isolation seam into the ext. Session doc:
+  [`sessions/care/04-mobile-shell-session.md`](sessions/care/04-mobile-shell-session.md).
+- **lb follow-up — patch written, awaiting PR**: the upstream additive fix
+  (one `else if` arm in `rust/crates/host/src/tool_call.rs` routing
+  `grants.*` / `roles.*` / `teams.*` to `call_authz_tool`) is at
+  `docs/debugging/authz/lb-grants-routing.patch`. A local lb worktree
+  under `/tmp/kilo/lb-workdir/lb-fix` applies the patch and `cargo
+  build -p lb-host` is green (3m04s). A `#[ignore]`d regression test
+  (`tests/matrix_era2_write.rs::era2_write_grants_assign_over_callback_works`)
+  runs against the patched lb (with the temporary `[patch]` block in
+  `.cargo/config.toml` pointing at the worktree); it proves the era-2
+  WRITE half of `guardianship.link` / `unlink` round-trips over the
+  callback. **Sandbox git dir is read-only** — the upstream PR + tag
+  dance lands from a writable clone; the patch + the test are ready.
 
 ## Deferred (per the milestones, not yet started)
 
@@ -100,13 +133,17 @@ catalog resolves en/es and the hardcoded-string lint is hard. `cargo test
 - **lb follow-up (upstream, blocks era-2 write path)**: route `grants.*` /
   `roles.*` / `teams.*` through lb's `/mcp/call` dispatcher (one additive arm
   in `tool_call.rs`) so a native extension can mint scoped grants over the
-  host-callback. Then tag + bump the pin here. See
-  `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`.
+  host-callback. Patch is at `docs/debugging/authz/lb-grants-routing.patch`;
+  a local worktree proves it green. Open the lb PR + tag `node-v0.3.1` + drop
+  the `[patch]` from `.cargo/config.toml` + flip the `#[ignore]`d test live.
+  See `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`.
 - **Milestone 03 — `care.enrollment.import`**: the lb/jobs CSV integration
   (deferred this session; records/verbs it lands into are all shipped).
-- **Milestone 04 — mobile-shell**: NEXT. `minimal-shell-v0.2.0` shipped, so it
-  can start. Login → mounted ext on a phone; the backend verbs + i18n are ready.
-- **Milestones 05 + 06 + 07 + 08 + 09 + 10**: per the build map.
+  Accepts children+guardians+edges, per-item results, hard-fail on medical
+  fields, idempotent on natural keys; 40-row fixture, 2 bad rows → 38 land.
+- **Milestones 05 + 06 + 07 + 08 + 09 + 10**: per the build map. m05
+  (invites-golden-path) is the E2E gate — invite→accept→feed; it
+  exercises the full path the m04 ships.
 - **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
   stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
 
@@ -118,19 +155,24 @@ The git-ignored `.cargo/config.toml` now carries ONLY:
 - **ZIG cache redirect** to `/tmp/kilo/zig-cache` (sandbox quirk —
   `/home/user/.cache/zig` is read-only).
 - `jobs = 4` (the RAM-heavy link step OOM-killed at 6 with the editor resident).
+- (TEMPORARY) A `[patch."https://github.com/NubeDev/lb"]` block pointing
+  at the local `node-v0.3.x + grants.* routing fix` worktree under
+  `/tmp/kilo/lb-workdir/lb-fix`, so the era-2 WRITE regression test runs
+  green. **Drop the patch + bump the lb pin to `node-v0.3.1`** when the
+  upstream PR lands.
 
-The lb `[patch]` block is **GONE** — cc-app builds straight from the published
-git tags (`node-v0.3.0` / `sdk-v0.3.0`). A clean `cargo build --workspace` with
-no path/patch is the "am I on releases?" check. No path/`[patch]` is committed.
+The lb `[patch]` block stays local until the upstream PR ships
+(see the session doc for the precise commit sequence).
 
 ## Next up
 
-**Milestone 04 — mobile-shell** (`ui/`): login → federation-mounted care ext on
-a phone (360px) + laptop-good, dark/light, shadcn only, en + es. Build the first
-real admin screens (Centers/Rooms, child editor, family/edges editor, waitlist)
-against the shipped m03 verbs via the impeccable skill; `remoteEntry.tsx` = one
-`defineRemote(...)`. In parallel/after: land the lb `grants.*`-routing fix
-(unblocks era-2 write) and `care.enrollment.import`.
+**Milestone 05 — invites-golden-path** (care ext + `ui/`): the E2E
+gate — invite → accept → feed. Reuses the m04 admin surfaces (the
+guardian editor + the family/edges editor + the waitlist per child)
+and exercises `care.invite.*` + the pre-auth accept page + the
+guardian feed surface end to end. The `care.invite_guardian` verb
+needs a `<care>` extension to mint an invite (records-before-accounts
+binds on `invite.accepted`).
 
 ## Non-goals (unchanged)
 

@@ -13,17 +13,63 @@
 //! required cap here as a defence-in-depth check so a cap-wall regression
 //! breaks the test, not a silent success). The harness in
 //! `tests/matrix.rs` exercises this for `care.ping`.
+//!
+//! ## Era-2 read delegation (milestone 03)
+//!
+//! The `Care` impl now holds a [`Chokepoint`] built from a real host callback
+//! (a [`lb_ext_native::SidecarClient`] read from the supervisor-injected
+//! env at sidecar start). When the platform routes `authz.*` over `/mcp/call`
+//! (it does, since `node-v0.3.0`) AND `grants.*`/`roles.*`/`teams.*` (the
+//! tracked upstream gap, WORKFLOW-LB.md task 2), the chokepoint's
+//! `assert_reach` / `reachable_children` delegate the read path to lb's
+//! entity-scoped grants and the derivation path on `guardianship.link` /
+//! `unlink` / `update` mints / revokes the corresponding scoped grant through
+//! the SAME callback. Today (without the `grants.*` routing fix), `link` /
+//! `unlink` / `update` fail loud — see `authz/grant.rs` — and the chokepoint's
+//! era-1 read fallback stays the live path.
 
 use lb_ext_native::Tools;
 use serde::Deserialize;
 
+use crate::center;
+use crate::child;
+use crate::enrollment;
+use crate::guardian;
+use crate::guardianship;
 use crate::ping;
+use crate::room;
 
 /// The tool names this sidecar serves (bare; the host owns the `care.`
 /// prefix). Reported in the `init` handshake so the host rejects an
 /// unknown-tool dispatch early, AND in the manifest's `[[tools]]` list so
 /// the install grant is computed against the actual surface.
-pub const TOOLS: &[&str] = &["ping"];
+///
+/// Every verb the m03 milestone added to the chokepoint's surface lives
+/// here so the dispatcher is the WHOLE contract (CLAUDE.md §4a — build the
+/// whole contract, not the easy half).
+pub const TOOLS: &[&str] = &[
+    "ping",
+    "center.create",
+    "center.get",
+    "center.list",
+    "room.create",
+    "room.get",
+    "room.list",
+    "child.create",
+    "child.get",
+    "child.list",
+    "child.update",
+    "child.archive",
+    "guardian.create",
+    "guardian.get",
+    "guardian.list",
+    "guardianship.link",
+    "guardianship.unlink",
+    "guardianship.update",
+    "enrollment.create",
+    "enrollment.list",
+    "enrollment.update",
+];
 
 /// The expected cap a caller must carry to invoke a `care.*` tool. The
 /// host re-checks this at the wall; we re-check here as a defence-in-depth
@@ -31,9 +77,37 @@ pub const TOOLS: &[&str] = &["ping"];
 #[allow(dead_code)]
 pub const REQUIRED_CAP: &str = "mcp:care.ping:call";
 
-/// The input shape for `care.ping` — the only verb shipped today. Each
-/// verb body has its own input struct; future verbs add theirs here as
-/// `#[serde(untagged)]` over the tool name, or per-verb files (cleaner).
+/// The minimum cap set an admin caller must carry to invoke any `care.*`
+/// verb. Per-verb caps (`mcp:care.<verb>:call`) are checked at the host
+/// wall; the child does not re-check them — this constant is here for
+/// the matrix harness's deny-test.
+#[allow(dead_code)]
+pub const ADMIN_CAPS: &[&str] = &[
+    "mcp:care.center.create:call",
+    "mcp:care.center.get:call",
+    "mcp:care.center.list:call",
+    "mcp:care.room.create:call",
+    "mcp:care.room.get:call",
+    "mcp:care.room.list:call",
+    "mcp:care.child.create:call",
+    "mcp:care.child.get:call",
+    "mcp:care.child.list:call",
+    "mcp:care.child.update:call",
+    "mcp:care.child.archive:call",
+    "mcp:care.guardian.create:call",
+    "mcp:care.guardian.get:call",
+    "mcp:care.guardian.list:call",
+    "mcp:care.guardianship.link:call",
+    "mcp:care.guardianship.unlink:call",
+    "mcp:care.guardianship.update:call",
+    "mcp:care.enrollment.create:call",
+    "mcp:care.enrollment.list:call",
+    "mcp:care.enrollment.update:call",
+];
+
+/// The input shape for `care.ping` — the only stateless verb. Every other
+/// verb has its own per-file input struct; this one stays here for the
+/// dispatch's per-call input parsing.
 #[derive(Debug, Deserialize)]
 pub struct PingInput {
     /// Optional echo payload; the verb round-trips it under `echoed`.
@@ -71,8 +145,39 @@ impl Tools for crate::Care {
         // after any leading `care.` — the child should not assume which
         // router reached it (host-metrics's posture).
         let verb = tool.strip_prefix("care.").unwrap_or(tool);
+
+        // Every verb body takes a `Chokepoint` (era-2 read delegation +
+        // era-1 fallback) plus the principal (carried on `Care` so the
+        // verb layer doesn't plumb it). Build the principal ONCE per
+        // call from the per-call JWT the supervisor stamps into the
+        // environment for the duration of this dispatch — a host that
+        // wants per-cap re-checks provides the principal in
+        // `LB_EXT_PRINCIPAL_JSON` (see `principal_from_env` below).
+        let principal = self.principal_for_call();
+        let cp = self.chokepoint();
+
         match verb {
             "ping" => ping::run(&self.ws, input),
+            "center.create" => center::create::run(cp, &principal, input).await,
+            "center.get" => center::get::run(cp, &principal, input).await,
+            "center.list" => center::list::run(cp, &principal, input).await,
+            "room.create" => room::create::run(cp, &principal, input).await,
+            "room.get" => room::list::get(cp, &principal, input).await,
+            "room.list" => room::list::list(cp, &principal, input).await,
+            "child.create" => child::create::run(cp, &principal, input).await,
+            "child.get" => child::get::run(cp, &principal, input).await,
+            "child.list" => child::list::run(cp, &principal, input).await,
+            "child.update" => child::update::run(cp, &principal, input).await,
+            "child.archive" => child::archive::run(cp, &principal, input).await,
+            "guardian.create" => guardian::create::run(cp, &principal, input).await,
+            "guardian.get" => guardian::list::get(cp, &principal, input).await,
+            "guardian.list" => guardian::list::run(cp, &principal, input).await,
+            "guardianship.link" => guardianship::link::run(cp, &principal, input).await,
+            "guardianship.unlink" => guardianship::unlink::run(cp, &principal, input).await,
+            "guardianship.update" => guardianship::update::run(cp, &principal, input).await,
+            "enrollment.create" => enrollment::create::run(cp, &principal, input).await,
+            "enrollment.list" => enrollment::list::run(cp, &principal, input).await,
+            "enrollment.update" => enrollment::update::run(cp, &principal, input).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

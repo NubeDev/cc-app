@@ -1,0 +1,19 @@
+--- a/rust/crates/host/src/tool_call.rs
++++ b/rust/crates/host/src/tool_call.rs
+@@ -358,7 +358,11 @@ pub async fn call_tool_at_depth(
+             // the outer gate ran `mcp:authz.<verb>:call`; the verb resolves the CALLING principal's own reach
+             // (never accepts a `user` arg — no information leak). `authz.resolve` /
+             // `authz.revoke-tokens` are the access-console admin verbs (already in `call_authz_tool`).
+             crate::call_authz_tool(&node.store, principal, ws, qualified_tool, &input).await?
++        } else if qualified_tool.starts_with("grants.")
++            || qualified_tool.starts_with("roles.")
++            || qualified_tool.starts_with("teams.") {
++            // Entity-scoped grants/roles/teams admin verbs (`grants.assign`, `grants.revoke`,
++            // `roles.assign`, `teams.add`, …). `call_authz_tool` already handles every one of
++            // these verbs, gated by the existing admin caps (`mcp:grants.assign:call`, …) — so
++            // this is additive, no new verb, no grammar change, no WIT bump. Without this arm
++            // the dispatcher falls through to the generic extension-registry path and denies
++            // (a native extension can read the scoped-grant surface but cannot mint scoped grants
++            // over the callback — `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`).
++            crate::call_authz_tool(&node.store, principal, ws, qualified_tool, &input).await?
+         } else if qualified_tool.starts_with("invite.") {

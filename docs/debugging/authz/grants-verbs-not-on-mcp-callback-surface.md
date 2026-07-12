@@ -1,9 +1,12 @@
 # `grants.*` verbs are not reachable over the native host-callback
 
 - **Area:** authz / era-2 scoped-grant derivation
-- **Date:** 2026-07-12 (milestone 03, Step C)
-- **Status:** OPEN — needs an upstream **lb** fix; tracked here, worked around
-  by keeping era-1 as the live reach path (see "Current posture").
+- **Date:** 2026-07-12 (milestone 03, Step C — opened)
+- **Date:** 2026-07-12 (milestone 04 — patch authored, awaiting upstream PR)
+- **Status:** OPEN — patch is in `docs/debugging/authz/lb-grants-routing.patch`
+  (the additive one-arm fix). Until lb ships it as `node-v0.3.x` and cc-app
+  bumps the pin, era-1 (store-resolved edges) stays the live reach path
+  (see "Current posture").
 
 ## Symptom
 
@@ -85,6 +88,38 @@ follow-up.
   verbs aren't reachable over the callback, so era-1 is correctly the live
   path. The matrix harness (`matrix_chokepoint.rs`) exercises it, including
   `unlink_immediately_denies`.
+
+## Patch (upstream lb — written, awaiting PR + tag)
+
+The additive one-arm fix lives at
+`docs/debugging/authz/lb-grants-routing.patch`. Apply it to lb's
+`rust/crates/host/src/tool_call.rs` on top of `node-v0.3.0`, cut
+`node-v0.3.1`, then bump cc-app's `lb-node` pin. The fix is purely
+additive (one `else if` arm), no new verb, no grammar change, no WIT
+bump. Once shipped:
+
+- Swap `tests/matrix_era2.rs`'s in-process
+  `seed_reach_grant`/`revoke_reach_grant` for the `SidecarClient`
+  `grants.assign`/`grants.revoke` callbacks (assertion bodies stay
+  identical — the invariant is the same; only the seeding path moves).
+- Wire an era-2 `Chokepoint` into the live `Care` dispatcher (the
+  `Care::boot` constructor builds one already; the only missing link
+  was the routing).
+- Delete this debug entry.
+
+## Local proof plan (WORKFLOW-LB.md §3)
+
+Drop into `.cargo/config.toml`:
+
+```toml
+[patch."https://github.com/NubeDev/lb"]
+lb-node = { path = "../lb/rust/node" }
+```
+
+Apply the patch, `cargo test --workspace` (era-2 matrix still green
+because the read path is unchanged; the WRITE half — the swapped
+`seed_reach_grant` → `SidecarClient::grants.assign` — would flip green
+the moment the patch lands). Drop the patch, push to lb, tag, bump.
 
 ## Regression test
 

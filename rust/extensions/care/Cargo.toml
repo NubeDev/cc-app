@@ -43,6 +43,9 @@ path = "src/main.rs"
 # Pinned to a PUBLISHED sdk-v* tag on the SDK repo (NubeDev/lb-ext-sdk).
 # NOT patched — this is the published SDK and is not affected by the
 # in-flight milestone 00 work in the lb repo.
+# From sdk-v0.3.0 the SDK ALSO re-exports the native host-callback client
+# (`SidecarClient` / `Config` / `CallError`) — one dep, both directions of
+# the wire (this ext's `authz::ReachClient` is built on it).
 lb-ext-native = { workspace = true }
 
 # The authz chokepoint reads `guardianship` / `staff_assignment` records
@@ -69,7 +72,12 @@ surrealdb = "2"
 # touch process stdio, so the workspace tokio omits `io-std`). A child
 # binary sets its own runtime features — it is a leaf, nothing depends
 # on it. Mirrors host-metrics / echo-sidecar.
-tokio = { version = "1", features = ["rt", "macros", "io-util", "io-std"] }
+tokio = { version = "1", features = ["rt", "macros", "io-util", "io-std", "rt-multi-thread"] }
+
+# The synthetic-admin fallback in `Care::new` constructs an in-memory
+# store synchronously; the executor used by `test_store_fallback` lives
+# here so the binary doesn't pull in a heavier runtime just for tests.
+futures = "0.3"
 
 [dev-dependencies]
 # Tests use the host's store + auth crates to seed the matrix harness

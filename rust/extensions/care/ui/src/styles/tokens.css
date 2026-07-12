@@ -1,8 +1,49 @@
-/* tokens.css — design tokens only. NO @tailwind base / :root{} / .dark{} here
-   (CLAUDE.md rule 6; SDK owns scoping). Per-milestone surface-specific
-   utilities live in their components via Tailwind. */
+/* tokens.css — semantic token bridge for the care extension.
+ *
+ * Per CLAUDE.md rule 6 / 9 / `mobile-shell-scope.md`:
+ *  - The host owns `:root{}` / `.dark{}` (the shadcn variable swap).
+ *  - The extension consumes SEMANTIC TOKENS ONLY — no hardcoded colors
+ *    (review-blocking defect).
+ *  - No `@tailwind base` here (that's the Preflight reset — the host
+ *    owns it). This file maps shadcn CSS variables into Tailwind's
+ *    `bg-card`, `text-foreground`, … classes the extension uses.
+ *
+ * The host cascades its variables INTO this subtree via the
+ * `[data-ext-root]` selector (the SDK contract): the extension inherits
+ * every `--background` / `--foreground` / `--card` token through the
+ * DOM, so the ext UI flips light ↔ dark with the host toggle and
+ * nothing ext-side cares.
+ *
+ * This file is the ONLY source of truth for which shadcn variables the
+ * extension references. Adding a new color in an ext component = adding
+ * a new var here, NEVER a hardcoded hex.
 
-:root {
+[data-ext-root] {
+  /* The host's shadcn variables cascade in via CSS custom properties —
+     we just map them into Tailwind's color names that the components
+     consume (`bg-background`, `text-foreground`, …). When the host flips
+     the theme, the cascade flips every component. */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  /* Local semantic tokens used by the components. */
   --care-radius: 0.75rem;
-  --care-touch-target: 2.75rem; /* mobile one-handed reach */
+  --care-touch-target: 2.75rem;
 }
