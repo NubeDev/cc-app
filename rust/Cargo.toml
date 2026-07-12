@@ -24,14 +24,19 @@ publish = false
 
 [workspace.dependencies]
 # lb-node — the embed seam. Pinned to a published `node-v*` tag from
-# NubeDev/lb (the rules in WORKFLOW-LB.md §4). Milestone 00 has landed:
-# lb released `node-v0.3.0` (the native host-callback client the era-2
-# wiring needs — a native extension can now call granted host MCP verbs,
-# incl. `authz.check_scoped`/`authz.scope_filter`, back into the core).
-# This is a REAL tag pin: the build resolves it straight from GitHub with
-# NO [patch] override (that block is dropped from .cargo/config.toml).
-# NEVER commit a path/[patch] reference (WORKFLOW-LB.md §3).
-lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
+# NubeDev/lb (the rules in WORKFLOW-LB.md §4). `node-v0.3.1` is the
+# release that ships the additive `grants.*` / `roles.*` / `teams.*`
+# routing arm in `/mcp/call` (`docs/debugging/authz/lb-grants-routing.patch`)
+# — the upstream fix that unblocks the era-2 WRITE half (`grant mint` /
+# `revoke`) for native extensions. era-2 read delegation has been live
+# since `node-v0.3.0` (read proves the just-minted grant composes with
+# the read path); era-2 WRITE round-trips over the callback once the
+# extension talks `grants.assign` / `grants.revoke` via the same
+# `SidecarClient`. This is a REAL tag pin: the build resolves it
+# straight from GitHub with NO [patch] override (that block is dropped
+# from .cargo/config.toml). NEVER commit a path/[patch] reference
+# (WORKFLOW-LB.md §3).
+lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
 
 # lb-ext-native — the ONLY platform dep an in-tree extension may carry
 # (WORKFLOW-LB.md §2). The child-side stdio wire (init/health/call/shutdown)

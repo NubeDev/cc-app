@@ -52,11 +52,11 @@ lb-ext-native = { workspace = true }
 # from the lb store directly (era 1, now the documented fallback path).
 # The store is the published seam (workspace-scoped SurrealDB); same git
 # tag as `lb-node` resolves to — `node-v0.3.0`, pinned, no [patch].
-lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
+lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
 
 # The authz chokepoint takes a `Principal` for its role check; that's
 # the only place below the boot seam we read it from.
-lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
+lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
 
 # Per-tool args/results + the authz chokepoint's principal payload.
 serde = { workspace = true }
@@ -84,13 +84,13 @@ futures = "0.3"
 # fixture + assert deny semantics — the real infra (CLAUDE.md rule 4
 # "no mocks"). Same git tag as lb-store/lb-auth (above) so a build +
 # test agree on the world.
-lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
+lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
 
 # The era-2 matrix test boots a REAL gateway (`lb-role-gateway`) on a real
 # TCP port and drives the chokepoint's host-callback path against it — the
 # same posture as lb's own `native_callback_test` (no mocks). `axum` serves
 # the real router; the `SidecarClient` (re-exported through `lb-ext-native`,
 # already a normal dep) makes real `reqwest` calls back into it.
-lb-role-gateway = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.0" }
+lb-role-gateway = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
 axum = "0.8"
 tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread", "net"] }

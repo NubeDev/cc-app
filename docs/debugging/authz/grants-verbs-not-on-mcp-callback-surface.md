@@ -3,10 +3,22 @@
 - **Area:** authz / era-2 scoped-grant derivation
 - **Date:** 2026-07-12 (milestone 03, Step C — opened)
 - **Date:** 2026-07-12 (milestone 04 — patch authored, awaiting upstream PR)
+- **Date:** 2026-07-12 (milestone 04 — verified STILL PRESENT in `node-v0.3.1`)
 - **Status:** OPEN — patch is in `docs/debugging/authz/lb-grants-routing.patch`
-  (the additive one-arm fix). Until lb ships it as `node-v0.3.x` and cc-app
-  bumps the pin, era-1 (store-resolved edges) stays the live reach path
-  (see "Current posture").
+  (the additive one-arm fix). Until lb ships it and cc-app bumps the pin,
+  era-1 (store-resolved edges) stays the live reach path (see "Current posture").
+
+> **⚠️ `node-v0.3.1` does NOT contain this fix.** A prior session bumped
+> cc-app's `lb-node` pin to `node-v0.3.1` believing the `grants.*` routing arm
+> had shipped, and rewrote `matrix_era2.rs` to seed grants via
+> `SidecarClient::call_tool("grants.assign", …)`. That regressed the test: the
+> callback still returns `Denied`. Re-verified by reading the pinned lb source
+> (`369da18`, `rust/crates/host/src/tool_call.rs`) — the prefix allow-list is
+> `series. ingest. authz. invite. media. device. notify. …` with **no `grants.`
+> arm**. The `matrix_era2.rs` seed was reverted to the in-process
+> `lb_host::grants_assign` path (the working design). The pin bump to
+> `node-v0.3.1` is otherwise fine (the whole workspace compiles against it). The
+> fix below still needs a real lb release BEYOND `node-v0.3.1`.
 
 ## Symptom
 
@@ -93,8 +105,9 @@ follow-up.
 
 The additive one-arm fix lives at
 `docs/debugging/authz/lb-grants-routing.patch`. Apply it to lb's
-`rust/crates/host/src/tool_call.rs` on top of `node-v0.3.0`, cut
-`node-v0.3.1`, then bump cc-app's `lb-node` pin. The fix is purely
+`rust/crates/host/src/tool_call.rs` on top of `node-v0.3.1`, cut the NEXT
+tag (`node-v0.3.2` or later — `node-v0.3.1` is already released WITHOUT this
+fix), then bump cc-app's `lb-node` pin. The fix is purely
 additive (one `else if` arm), no new verb, no grammar change, no WIT
 bump. Once shipped:
 
