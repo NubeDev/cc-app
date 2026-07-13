@@ -4,7 +4,7 @@
 //!
 //! 1. Guardians hold no `mcp:care.announce.post:call` cap ⇒ the host wall denies
 //!    them this verb.
-//! 2. Even reaching lb directly, a guardian holds only `bus:chan/care-center-*:sub`
+//! 2. Even reaching lb directly, a guardian holds only `bus:chan/care.center.*:sub`
 //!    (granted read-only by the announcements-provisioning path), never `:pub` —
 //!    so lb's `channel.post` gate (`bus:chan/{cid}:pub`) 403s the post.
 //!
@@ -44,7 +44,7 @@ pub async fn run(cp: &Chokepoint, _principal: &Principal, input: &str) -> Result
 
     // lb's channel.post gate requires `bus:chan/{cid}:pub` — which admin/staff
     // hold (granted on center provisioning) and guardians do not. The care
-    // install holds the `bus:chan/care-**:pub` wildcard so this call is authorized
+    // install holds the `bus:chan/care.**:pub` wildcard so this call is authorized
     // when the caller's own grant matches; lb charges the post to the caller.
     let out = client
         .call_tool(

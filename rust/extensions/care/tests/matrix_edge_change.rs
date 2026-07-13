@@ -22,7 +22,7 @@
 //!
 //! The CHANNEL-membership collapse on unlink is proven separately in
 //! `matrix_messaging::unlinked_guardian_drops_from_the_derived_set` (the reconciler
-//! revokes `bus:chan/care-child-<id>:{pub,sub}` in the same `unlink` handler);
+//! revokes `bus:chan/care.child.<id>:{pub,sub}` in the same `unlink` handler);
 //! keeping it out of this live drill avoids provisioning a channel first (that path
 //! is exercised by the m09 suite).
 //!
@@ -155,10 +155,36 @@ async fn unlinking_ana_from_leo_collapses_every_access_surface() {
         &base,
         &admin,
         "care.guardianship.link",
-        json!({"guardian_sub":"ana","child_id":"leo","relationship":"mother","can_pickup":true,"receives_daily_feed":true,"locale":"es"}),
+        json!({"guardian_sub":"ana","child_id":"leo","relationship":"mother","can_pickup":true,"receives_daily_feed":true,"receives_messaging":true,"locale":"es"}),
     )
     .await;
-    assert_eq!(c, 200, "guardianship.link: {b}");
+    // link-with-messaging grants the channel-membership caps over the live
+    // callback — this 403'd before the m10 channel-id fix (the `care-**` wildcard
+    // never matched a `-`-joined id;
+    // docs/debugging/authz/channel-wildcard-hold-does-not-match-hyphen-ids.md).
+    assert_eq!(c, 200, "guardianship.link with messaging: {b}");
+
+    // Prove `care.channel.reconcile` now ROUTES on the live node — it returned
+    // "no such tool" before the m10 manifest fix (the verb was in Tools::TOOLS +
+    // the grant but had no [[tools]] block, so the host never registered it for
+    // routing; same for announce.post / media.begin / media.commit). A routed call
+    // returns a tool-level result (200) or a tool-level ERROR string, NEVER the
+    // host's "no such tool". The channel PROVISIONING (channel.create over the
+    // callback) has a separate host-denial documented as an m10 follow-on
+    // (docs/debugging/authz/channel-wildcard-hold-does-not-match-hyphen-ids.md
+    // §"Follow-on"), so we assert routing here, not a 200.
+    let (_c, reconcile_b) = mcp(
+        &http,
+        &base,
+        &admin,
+        "care.channel.reconcile",
+        json!({"target":"child","id":"leo"}),
+    )
+    .await;
+    assert!(
+        !reconcile_b.as_str().unwrap_or("").contains("no such tool"),
+        "care.channel.reconcile must ROUTE (m10 manifest fix), got: {reconcile_b}"
+    );
 
     // Add a feed entry so there is history to lose on unlink. `note` kind, valid
     // ISO-8601 `at`, explicit `entry_id` + `room_id` (the staff two-tap shape).

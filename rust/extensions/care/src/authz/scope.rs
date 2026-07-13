@@ -210,7 +210,7 @@ pub struct ChannelMember {
     pub full: bool,
 }
 
-/// Derive the membership of a CHILD channel (`care-child-<child_id>`): the
+/// Derive the membership of a CHILD channel (`care.child.<child_id>`): the
 /// child's messaging-enabled guardians (live edge + `receives_messaging`) + the
 /// staff assigned to the child's room — all FULL members (post + read). This is
 /// the leak vector: a guardian appears iff a LIVE edge with the messaging flag
@@ -253,7 +253,7 @@ pub async fn resolve_child_channel_members(cp: &Chokepoint, child_id: &str) -> V
     dedupe_members(members)
 }
 
-/// Derive the STAFF membership of a ROOM channel (`care-room-<room_id>`) — the
+/// Derive the STAFF membership of a ROOM channel (`care.room.<room_id>`) — the
 /// room's assigned staff, all FULL members. Same fail-closed + fence posture as
 /// the child channel.
 ///

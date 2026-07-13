@@ -111,7 +111,7 @@ mod tests {
             .await
             .expect("reconcile");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["channel_id"], "care-child-child:leo");
+        assert_eq!(v["channel_id"], "care.child.child:leo");
         assert_eq!(v["members"], 0);
     }
 

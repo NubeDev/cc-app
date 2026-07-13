@@ -104,18 +104,18 @@ mod tests {
     #[tokio::test]
     async fn no_client_is_a_noop_ok() {
         assert!(
-            grant_membership(None, "care-child-leo", "user:ana", ChannelRole::Full)
+            grant_membership(None, "care.child.leo", "user:ana", ChannelRole::Full)
                 .await
                 .is_ok()
         );
-        assert!(revoke_membership(None, "care-child-leo", "user:ana")
+        assert!(revoke_membership(None, "care.child.leo", "user:ana")
             .await
             .is_ok());
         let members = vec![ChannelMember {
             subject: "user:ana".into(),
             full: true,
         }];
-        assert!(reconcile_channel(None, "care-child-leo", &members)
+        assert!(reconcile_channel(None, "care.child.leo", &members)
             .await
             .is_ok());
     }

@@ -142,16 +142,16 @@ request = [
     # milestone 09 — messaging: the channel host surface (provision + post over
     # the callback) + the pub/sub wildcard HOLDS. lb channels split the authority
     # (post = bus:chan/{cid}:pub, read = :sub); the sidecar holds the recursive
-    # `care-**` wildcards so grants_assign's no-widening rule lets it mint a
-    # per-channel `bus:chan/care-child-<id>:sub`/`:pub` for members (the
+    # `care.**` wildcards so grants_assign's no-widening rule lets it mint a
+    # per-channel `bus:chan/care.child.<id>:sub`/`:pub` for members (the
     # `store:media/**:read` idiom). Read-only membership = granting :sub without
     # :pub — the announcements policy, no care hack.
     "mcp:channel.create:call",
     "mcp:channel.post:call",
     "mcp:channel.history:call",
     "mcp:channel.list:call",
-    "bus:chan/care-**:pub",
-    "bus:chan/care-**:sub",
+    "bus:chan/care.**:pub",
+    "bus:chan/care.**:sub",
 
     # milestone 10 — feed-watch stream isolation (lb#49 / node-v0.4.3). lb's
     # generic `bus.watch` now honors a subject-scoped `bus:<subject>:watch` grant
@@ -322,6 +322,20 @@ description = "The 'Leo's day' rollup (net timeline + per-type tally) the UI and
 [[tools]]
 name        = "feed.watch"
 description = "Authorize a guardian's live per-child SSE subscription (reach-checked); returns the gateway stream descriptor."
+[[tools]]
+name        = "media.begin"
+description = "Begin a photo upload (reject video/pdf — photos-only v1); wraps lb media.upload_begin."
+[[tools]]
+name        = "media.commit"
+description = "Commit a photo upload; wraps lb media.upload_commit."
+
+# --- milestone 09: messaging (channel provisioning + membership reconcile) ---
+[[tools]]
+name        = "channel.reconcile"
+description = "Provision + heal a child/room channel: derive membership from live domain records and grant/revoke the split pub/sub caps to match (the leak-critical reconciler)."
+[[tools]]
+name        = "announce.post"
+description = "Admin/staff post to a center announcements channel (guardians are read-only — the split-cap policy, enforced twice)."
 
 # The PAGE this extension contributes to the sidebar (ui-federation). The
 # `entry` is the ESM remote the shell dynamic-imports, served under the

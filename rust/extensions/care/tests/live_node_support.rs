@@ -69,6 +69,8 @@ pub fn approved_grant() -> Vec<String> {
         "log.correct",
         "log.day",
         "feed.watch",
+        "media.begin",
+        "media.commit",
         "channel.reconcile",
         "announce.post",
     ] {
@@ -119,8 +121,8 @@ pub fn approved_grant() -> Vec<String> {
     // wildcard holds (media serve-grant + channel membership grants — the
     // no-widening rule; lock-step with care_mount::approved_grant + extension.toml)
     g.push("store:media/**:read".to_string());
-    g.push("bus:chan/care-**:pub".to_string());
-    g.push("bus:chan/care-**:sub".to_string());
+    g.push("bus:chan/care.**:pub".to_string());
+    g.push("bus:chan/care.**:sub".to_string());
     // milestone 10 — the feed-watch wildcard hold (lb#49 / node-v0.4.3).
     g.push("bus:care.feed.**:watch".to_string());
     g

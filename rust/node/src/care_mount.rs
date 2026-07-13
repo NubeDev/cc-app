@@ -148,6 +148,9 @@ fn approved_grant() -> Vec<String> {
         "log.correct",
         "log.day",
         "feed.watch",
+        // the photo upload boundary (reject video; wraps lb media.upload_*)
+        "media.begin",
+        "media.commit",
         // milestone 09 — messaging
         "channel.reconcile",
         "announce.post",
@@ -193,11 +196,11 @@ fn approved_grant() -> Vec<String> {
     }
     // milestone 09 — the channel wildcard HOLDS. lb's grants_assign no-widening
     // rule requires the care sidecar to HOLD a cap matching what it grants, so it
-    // holds `bus:chan/care-**:{pub,sub}` (scoped to the `care-` channel prefix) to
-    // mint per-channel `bus:chan/care-child-<id>:sub` / `:pub` for members — the
+    // holds `bus:chan/care.**:{pub,sub}` (scoped to the `care.` channel prefix) to
+    // mint per-channel `bus:chan/care.child.<id>:sub` / `:pub` for members — the
     // same idiom as the `store:media/**:read` media serve-grant hold.
-    approved.push("bus:chan/care-**:pub".to_string());
-    approved.push("bus:chan/care-**:sub".to_string());
+    approved.push("bus:chan/care.**:pub".to_string());
+    approved.push("bus:chan/care.**:sub".to_string());
     // milestone 08 — the media serve-grant wildcard hold (requested in
     // extension.toml). Same no-widening reason: care holds `store:media/**:read`
     // so it can grant a per-photo `store:media/{id}:read` to feed recipients.
