@@ -48,11 +48,38 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .ok_or_else(|| format!("{}", ChildError::NotFound(parsed.id.clone())))?;
 
     let archived = !parsed.restore;
+
+    // Archive → stop-posts (milestone 10): BEFORE flipping the flag, capture the
+    // child channel's current members so we can revoke their posting/reading —
+    // once `archived = true` the derivation returns an empty set (the channel is
+    // frozen), so we must read the live members first. Best-effort + surfaced (a
+    // surviving grant on an archived child is a stale post surface); no host
+    // client (era-1/test) ⇒ the list is empty and this is a no-op. Only on the
+    // archive transition; `restore` re-derives via a normal reconcile.
+    let members_to_freeze = if archived {
+        crate::authz::channel_members(cp, &crate::authz::ChannelTarget::Child(&parsed.id)).await
+    } else {
+        Vec::new()
+    };
+
     row["archived"] = serde_json::Value::Bool(archived);
     cp.records()
         .write("child", &parsed.id, &row)
         .await
         .map_err(|e| format!("{}: {e}", ChildError::StoreDenied("archive write".into())))?;
+
+    if archived {
+        if let Some(client) = cp.host_client() {
+            let channel = crate::messaging::child_channel(&parsed.id);
+            for m in &members_to_freeze {
+                crate::messaging::reconcile::revoke_membership(Some(client), &channel, &m.subject)
+                    .await
+                    .map_err(|e| {
+                        ["archive stop-posts revoke failed (retry): ", &e.to_string()].concat()
+                    })?;
+            }
+        }
+    }
 
     let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let key = if archived {
@@ -113,6 +140,48 @@ mod tests {
             .expect("restore");
         let row = read(&store, "acme", "child", "leo").await.unwrap().unwrap();
         assert_eq!(row["archived"], false, "admin recovered it");
+    }
+
+    /// Archive → stop-posts (milestone 10): an ARCHIVED child's channel derives
+    /// NO members, so a healing sweep grants nobody and no post/read surface
+    /// survives. A linked messaging guardian is a member BEFORE archive and gone
+    /// AFTER — the freeze. (The live grant-revoke round-trip is a live-node concern;
+    /// the derivation is the leak-critical invariant and is unit-tested here.)
+    #[tokio::test]
+    async fn an_archived_childs_channel_derives_no_members() {
+        use crate::authz::{channel_members, ChannelTarget};
+        use crate::guardianship::link as guardianship_link;
+
+        let store = Arc::new(Store::memory().await.unwrap());
+        let key = SigningKey::generate();
+        let cp = Chokepoint::new(store, "acme");
+        let p = admin(&key, "acme");
+
+        child_create::run(&cp, &p, r#"{"id":"leo","name":"Leo","dob":"2021-03-15"}"#)
+            .await
+            .unwrap();
+        // A live, messaging-enabled guardian ⇒ a channel member while active.
+        guardianship_link::run(
+            &cp,
+            &p,
+            r#"{"guardian_sub":"user:ana","child_id":"leo","relationship":"mother","receives_messaging":true}"#,
+        )
+        .await
+        .expect("link");
+
+        let before = channel_members(&cp, &ChannelTarget::Child("leo")).await;
+        assert!(
+            before.iter().any(|m| m.subject == "user:ana"),
+            "an active child's messaging guardian is a channel member: {before:?}"
+        );
+
+        run(&cp, &p, r#"{"id":"leo"}"#).await.expect("archive");
+
+        let after = channel_members(&cp, &ChannelTarget::Child("leo")).await;
+        assert!(
+            after.is_empty(),
+            "an ARCHIVED child's channel must derive NO members (frozen): {after:?}"
+        );
     }
 
     #[tokio::test]

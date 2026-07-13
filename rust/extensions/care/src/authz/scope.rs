@@ -220,6 +220,25 @@ pub struct ChannelMember {
 pub async fn resolve_child_channel_members(cp: &Chokepoint, child_id: &str) -> Vec<ChannelMember> {
     let mut members = Vec::new();
 
+    // An ARCHIVED child's channel is FROZEN — no members, so a healing sweep grants
+    // nobody and the `child.archive` handler's revoke leaves it empty (milestone 10
+    // archive→stop-posts). An archived child is invisible to guardians everywhere
+    // else (list filters it); the channel must not be a surviving post/read surface.
+    // Fail-closed: a missing/faulted child row reads as archived here (no members)
+    // rather than deriving a live set for a child we can't confirm is active.
+    match read(&cp.store, &cp.ws, "child", child_id).await {
+        Ok(Some(row))
+            if row
+                .get("archived")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false) =>
+        {
+            return members;
+        }
+        Ok(Some(_)) => {}
+        _ => return members,
+    }
+
     // Messaging-enabled guardians of the child.
     if let Ok(rows) = list(&cp.store, &cp.ws, "guardianship", "child_id", child_id).await {
         for row in rows {
