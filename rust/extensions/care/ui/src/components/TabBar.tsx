@@ -1,10 +1,10 @@
-import { Home, Users, Settings, UtensilsCrossed, ClipboardCheck } from "lucide-react";
+import { Home, Users, Settings, UtensilsCrossed, ClipboardCheck, MessageCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useT } from "../hooks/useT";
 import { useCareSession } from "../hooks/useCareSession";
 import { cn } from "../lib/cn";
 
-export type TabKey = "today" | "children" | "menus" | "attendance" | "admin";
+export type TabKey = "today" | "children" | "menus" | "attendance" | "messages" | "admin";
 
 interface Props {
   active: TabKey;
@@ -31,6 +31,11 @@ export function TabBar({ active, onChange, showAdmin }: Props) {
   if (isStaffOrAdmin)
     items.push({ key: "attendance", label: t("nav.attendance"), icon: ClipboardCheck });
   items.push({ key: "menus", label: t("nav.menus"), icon: UtensilsCrossed });
+  // Messages is universal — every role gets it (guardian: her child + room +
+  // read-only announcements; staff: assigned rooms + children; admin: all +
+  // the Announcements composer). Membership is derived server-side; the list
+  // only ever shows channels the caller can reach.
+  items.push({ key: "messages", label: t("nav.messages"), icon: MessageCircle });
   if (isAdmin) items.push({ key: "admin", label: t("nav.admin"), icon: Settings });
 
   return (

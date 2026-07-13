@@ -49,6 +49,7 @@ pub mod invite;
 pub mod log;
 pub mod media;
 pub mod menu;
+pub mod messaging;
 pub mod push;
 pub mod room;
 

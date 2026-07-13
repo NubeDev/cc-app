@@ -295,10 +295,9 @@ see `Makefile` §LB_TAG + §trusted-pubkey).
   (deferred this session; records/verbs it lands into are all shipped).
   Accepts children+guardians+edges, per-item results, hard-fail on medical
   fields, idempotent on natural keys; 40-row fixture, 2 bad rows → 38 land.
-- **Milestones 06 + 07 + 08 CLOSED (2026-07-13)** — attendance + menus + the
-  daily feed (see the m08 close above). **09 + 10** remain: m09 (messaging) is
-  NEXT UP (below). Two m08 deferrals (lb `bus.watch` scoping + the live-node
-  motion E2E) land in m10.
+- **Milestones 06 + 07 + 08 + 09 CLOSED (2026-07-13)** — attendance + menus +
+  daily feed + messaging (see the closes above). **10** remains: m10 (hardening /
+  PWA) is NEXT UP (below). The m08 + m09 deferrals land in m10.
 - **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
   stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
 
@@ -336,6 +335,51 @@ GREEN from tags with **NO `.cargo/config.toml` and NO `[patch]`** — a clean
 "am I on releases?" pass (WORKFLOW-LB.md §4). (This box has a system C compiler,
 so the zigcc wiring the earlier local-dev posture described is not needed here.)
 Full history: [`debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md`](debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md).
+
+## Milestone 09 (messaging) — CLOSED (2026-07-13)
+
+Guardian↔staff messaging WITHOUT building a messaging system: care provisions lb
+channels + keeps membership DERIVED from domain records. **Entry gate resolved
+with NO lb core work** — lb channels already support read-only membership via
+split caps (post=`bus:chan/{cid}:pub`, read=`:sub`); read-only = grant `sub`
+without `pub`, expressible with the existing `grants.assign` grammar. Session +
+finding: [`sessions/care/09-messaging-session.md`](sessions/care/09-messaging-session.md).
+
+- **Foundation**: the distinct `receives_messaging` edge flag (open question
+  resolved — messaging access ≠ feed access); `messaging/channel_id.rs` (convention
+  ids `care-child/room/center-<id>` + pub/sub cap builders + `ChannelRole::{Full,
+  ReadOnly}` — read-only = sub w/o pub, the posting policy).
+- **The reconciler** (the leak vector): `authz::channel_members` (behind the fence)
+  derives a child channel's members from live guardianship edges (+ the messaging
+  flag) + room staff; room channels derive STAFF (the store `list` returns no keys
+  so a room can't enumerate its children — guardian room-membership is event-driven
+  per placement, documented). `messaging/reconcile.rs` grants/revokes the delta via
+  `grants.assign/revoke` (the media serve-grant idiom).
+- **Verbs**: `care.channel.reconcile` (provision + heal), `care.announce.post`
+  (admin/staff → center channel; read-only for guardians enforced twice).
+- **Same-breath handler hooks**: `guardianship.link/unlink/update` grant/revoke
+  channel membership in the SAME handler as the edge (unlink = immediate removal).
+- **UI**: guardian/staff `MessagesPage` + admin `AnnouncementsCompose`, wired into
+  the Messages tab. Channels reached via lb MCP `channel.*` verbs (history-poll
+  liveness — the m08 FeedPage pattern; ext-UI SSE is a TODO, the runtime exposes no
+  gateway origin/token). en+es at parity.
+- **Matrix**: `matrix_messaging.rs` — the cross-family derivation sweep (Ana never
+  in Mia's channel; the distinct-flag; unlink drops the guardian; room staff).
+
+**Wiring lock-step**: `call.rs` + `care_mount::approved_grant` + `extension.toml` +
+`live_node_support` (channel.* host verbs + `bus:chan/care-**:{pub,sub}` wildcard
+holds). Also fixed a **latent m08 gap**: `store:media/**:read` was in extension.toml
+but MISSING from `approved_grant` (the media serve-grant would fail on a live node —
+best-effort so untested) — added lock-step.
+
+**Green**: care lib+matrix (15 test bins, 0 warnings), all 4 Rust fences, workspace
+build; care-ui `tsc` + i18n parity + `pnpm build`.
+
+**Deferred (small follow-ons, honest)**: (1) archive→stop-posts — provisioning is
+on-demand via `channel.reconcile`, not eager on entity-create/archive; (2) staff
+room-move reconcile — no standalone staff-reassignment verb exists yet to hook
+(assignments are minted via invite-accept); (3) ext-UI channel SSE (runtime exposes
+no origin/token — poll-history for now).
 
 ## Milestone 08 (daily-feed) — CLOSED (2026-07-13)
 
@@ -416,9 +460,17 @@ The wire seams are confirmed present in lb: `bus.publish`, `notify.send`,
 
 ## Next up
 
-**Milestone 09 — messaging** (care ext + `ui/`): the guardian↔staff channel,
-chained off the same chokepoint (`docs/build/09-*`). Then **m10 — hardening /
-PWA install path**, which is where the two m08 deferrals land:
+**Milestone 10 — hardening / PWA install path** (the final phase-1 milestone).
+It is where the accumulated deferrals land:
+
+- **m08**: the lb `bus.watch` per-subject scoping + mid-stream revoke fix, then
+  `feed.watch` full stream isolation; the live-node motion E2E (two-tap → PWA
+  live → locked-phone push; es-locale feed UI run).
+- **m09**: archive→stop-posts wiring; the staff room-move reconcile (once a
+  staff-reassignment verb exists); ext-UI channel SSE (once the runtime exposes a
+  gateway origin/token — poll-history bridges it today).
+
+The prior m10 note (kept below for reference):
 
 1. The lb `bus.watch` per-subject scoping + mid-stream revoke fix
    (`docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md`) —

@@ -42,6 +42,7 @@ use crate::invite;
 use crate::log;
 use crate::media;
 use crate::menu;
+use crate::messaging;
 use crate::ping;
 use crate::room;
 
@@ -100,6 +101,9 @@ pub const TOOLS: &[&str] = &[
     // Milestone 08 — the photo upload boundary (reject video, delegate to lb).
     "media.begin",
     "media.commit",
+    // Milestone 09 — messaging (channel provisioning + membership reconciliation).
+    "channel.reconcile",
+    "announce.post",
 ];
 
 /// The expected cap a caller must carry to invoke a `care.*` tool. The
@@ -155,6 +159,8 @@ pub const ADMIN_CAPS: &[&str] = &[
     "mcp:care.feed.watch:call",
     "mcp:care.media.begin:call",
     "mcp:care.media.commit:call",
+    "mcp:care.channel.reconcile:call",
+    "mcp:care.announce.post:call",
 ];
 
 /// The input shape for `care.ping` — the only stateless verb. Every other
@@ -285,6 +291,8 @@ impl crate::Care {
             "feed.watch" => feed::watch::run(cp, &principal, input).await,
             "media.begin" => media::begin::run(cp, &principal, input).await,
             "media.commit" => media::commit::run(cp, &principal, input).await,
+            "channel.reconcile" => messaging::reconcile_verb::run(cp, &principal, input).await,
+            "announce.post" => messaging::announce::run(cp, &principal, input).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

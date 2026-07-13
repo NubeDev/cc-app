@@ -39,6 +39,11 @@ pub struct LinkInput {
     pub emergency_contact: bool,
     #[serde(default)]
     pub custody_notes: Option<String>,
+    /// Milestone 09 — messaging access to the child's channel (a DISTINCT flag
+    /// from `receives_daily_feed`; the reconciler derives channel membership
+    /// from it).
+    #[serde(default)]
+    pub receives_messaging: bool,
     /// The locale to render the confirmation string in (the admin's, or the
     /// workspace default). Defaults to `en`.
     #[serde(default)]
@@ -87,6 +92,7 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             receives_billing: parsed.receives_billing,
             emergency_contact: parsed.emergency_contact,
             custody_notes: parsed.custody_notes,
+            receives_messaging: parsed.receives_messaging,
         },
     };
     let value = serde_json::to_value(&edge).map_err(|e| format!("serialize edge: {e}"))?;
@@ -122,6 +128,26 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 }
             };
             return Err(err.to_string());
+        }
+    }
+
+    // 3) Grant channel membership (milestone 09) iff the edge opts into
+    //    messaging. A missing channel grant is a LOCKOUT (the guardian can't read
+    //    a channel they're entitled to), not a leak — so unlike the reach grant it
+    //    does NOT roll back the edge; it is surfaced (returned) for retry via the
+    //    healing sweep. Full member (post + read) on the child channel. Best-effort
+    //    no-op without a host client (era-1/test path).
+    if parsed.receives_messaging {
+        if let Some(client) = cp.host_client() {
+            let child_ch = crate::messaging::child_channel(&parsed.child_id);
+            crate::messaging::reconcile::grant_membership(
+                Some(client),
+                &child_ch,
+                &guardian_sub,
+                crate::messaging::ChannelRole::Full,
+            )
+            .await
+            .map_err(|e| format!("channel membership grant failed (retry via reconcile): {e}"))?;
         }
     }
 

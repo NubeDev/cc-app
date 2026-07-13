@@ -10,6 +10,8 @@ import { ServingViewPage } from "./menu/ServingViewPage";
 import { MenuPlannerPage } from "./menu/MenuPlannerPage";
 import { FeedPage } from "./feed/FeedPage";
 import { LogEntryPage } from "./feed/LogEntryPage";
+import { MessagesPage } from "./messaging/MessagesPage";
+import { AnnouncementsCompose } from "./messaging/AnnouncementsCompose";
 
 export function HomePage() {
   const session = useCareSession();
@@ -36,12 +38,22 @@ export function HomePage() {
     return <FeedPage />;
   }
 
+  // The Messages tab (milestone 09). Guardians + staff get the channel list +
+  // thread view (MessagesPage, role-gated by the server-derived membership lb
+  // returns); an admin gets the Announcements composer (their stated screen —
+  // compose + history to `care-center-*`; guardians read those in Messages).
+  function messagesSurface() {
+    if (isAdmin) return <AnnouncementsCompose />;
+    return <MessagesPage />;
+  }
+
   return (
     <div>
       {tab === "today" && todaySurface()}
       {tab === "children" && isAdmin && <ChildrenListPage />}
       {tab === "attendance" && (isStaff || isAdmin) && <AttendancePage />}
       {tab === "menus" && menusSurface()}
+      {tab === "messages" && messagesSurface()}
       {tab === "admin" && isAdmin && <AdminHomePage />}
 
       <TabBar active={tab} onChange={setTab} showAdmin={isAdmin} />

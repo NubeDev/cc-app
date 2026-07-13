@@ -69,6 +69,8 @@ pub fn approved_grant() -> Vec<String> {
         "log.correct",
         "log.day",
         "feed.watch",
+        "channel.reconcile",
+        "announce.post",
     ] {
         g.push(format!("mcp:care.{verb}:call"));
     }
@@ -106,9 +108,19 @@ pub fn approved_grant() -> Vec<String> {
         "media.upload_begin",
         "media.upload_commit",
         "media.get",
+        // milestone 09 — channel host surface
+        "channel.create",
+        "channel.post",
+        "channel.history",
+        "channel.list",
     ] {
         g.push(format!("mcp:{verb}:call"));
     }
+    // wildcard holds (media serve-grant + channel membership grants — the
+    // no-widening rule; lock-step with care_mount::approved_grant + extension.toml)
+    g.push("store:media/**:read".to_string());
+    g.push("bus:chan/care-**:pub".to_string());
+    g.push("bus:chan/care-**:sub".to_string());
     g
 }
 

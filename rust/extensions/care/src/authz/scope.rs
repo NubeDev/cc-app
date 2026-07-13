@@ -201,6 +201,125 @@ pub fn edge_id(guardian_sub: &str, child_id: &str) -> String {
     format!("{}::{}", guardian_sub, child_id)
 }
 
+/// A derived channel member — the subject + the role (Full = post+read;
+/// ReadOnly = read only). Milestone 09: membership is DERIVED here (behind the
+/// fence — it reads `guardianship`), never hand-managed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelMember {
+    pub subject: String,
+    pub full: bool,
+}
+
+/// Derive the membership of a CHILD channel (`care-child-<child_id>`): the
+/// child's messaging-enabled guardians (live edge + `receives_messaging`) + the
+/// staff assigned to the child's room — all FULL members (post + read). This is
+/// the leak vector: a guardian appears iff a LIVE edge with the messaging flag
+/// exists, so an unlinked or non-messaging guardian is absent (their next read
+/// 403s at lb's gate). Fail-closed: a store fault yields NO members rather than
+/// a broadcast. Behind the fence (reads `guardianship`).
+pub async fn resolve_child_channel_members(cp: &Chokepoint, child_id: &str) -> Vec<ChannelMember> {
+    let mut members = Vec::new();
+
+    // Messaging-enabled guardians of the child.
+    if let Ok(rows) = list(&cp.store, &cp.ws, "guardianship", "child_id", child_id).await {
+        for row in rows {
+            let live = row.get("live").and_then(|v| v.as_bool()).unwrap_or(false);
+            let messaging = row
+                .get("receives_messaging")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !live || !messaging {
+                continue;
+            }
+            if let Some(sub) = row.get("guardian_sub").and_then(|v| v.as_str()) {
+                members.push(ChannelMember {
+                    subject: sub.to_string(),
+                    full: true,
+                });
+            }
+        }
+    }
+
+    // Staff of the child's room (read child → room → its assignments).
+    if let Some(room_id) = child_room(cp, child_id).await {
+        for sub in room_staff(cp, &room_id).await {
+            members.push(ChannelMember {
+                subject: sub,
+                full: true,
+            });
+        }
+    }
+
+    dedupe_members(members)
+}
+
+/// Derive the STAFF membership of a ROOM channel (`care-room-<room_id>`) — the
+/// room's assigned staff, all FULL members. Same fail-closed + fence posture as
+/// the child channel.
+///
+/// ## Why staff-only here (guardians are event-driven, not derived)
+///
+/// The generic store `list` returns a row's DATA, never its key, and the `child`
+/// record carries no `id` field — so a room cannot enumerate "its children" (and
+/// thus their guardians) by derivation. That is fine: guardian room-membership is
+/// reconciled at the PLACEMENT event, where the child id IS known (the enrollment/
+/// room-move handler calls `grant_membership` for the child's messaging guardians
+/// on the room channel). The derivation's job is the STAFF set (the stable
+/// broadcast authors); the per-placement handler owns the guardian folding. A
+/// healing sweep over a room reconciles staff; a per-child sweep reconciles that
+/// child's guardians onto both channels.
+pub async fn resolve_room_channel_members(cp: &Chokepoint, room_id: &str) -> Vec<ChannelMember> {
+    dedupe_members(
+        room_staff(cp, room_id)
+            .await
+            .into_iter()
+            .map(|subject| ChannelMember {
+                subject,
+                full: true,
+            })
+            .collect(),
+    )
+}
+
+/// The `child.room_id` for a child (None if unenrolled or missing). Behind the
+/// fence's module but reads `child` (not `guardianship`), so no fence concern.
+async fn child_room(cp: &Chokepoint, child_id: &str) -> Option<String> {
+    let value = read(&cp.store, &cp.ws, "child", child_id).await.ok()??;
+    value
+        .get("room_id")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+}
+
+/// The staff subjects assigned to a room (lists `staff_assignment` by room).
+async fn room_staff(cp: &Chokepoint, room_id: &str) -> Vec<String> {
+    let Ok(rows) = list(&cp.store, &cp.ws, "staff_assignment", "room_id", room_id).await else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .filter_map(|row| {
+            row.get("staff_sub")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+/// Dedupe members by subject, keeping the STRONGEST role (Full wins over
+/// ReadOnly) — a person who is both a room's staff and a guardian is one Full
+/// member, never a duplicate grant.
+fn dedupe_members(members: Vec<ChannelMember>) -> Vec<ChannelMember> {
+    let mut out: Vec<ChannelMember> = Vec::new();
+    for m in members {
+        if let Some(existing) = out.iter_mut().find(|e| e.subject == m.subject) {
+            existing.full = existing.full || m.full;
+        } else {
+            out.push(m);
+        }
+    }
+    out
+}
+
 /// The `Scope` of a single verb — the cap + the chokepoint call shape.
 /// Used by the matrix harness to enumerate verbs and assert the allow /
 /// deny / empty table.
