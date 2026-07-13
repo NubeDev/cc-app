@@ -36,7 +36,7 @@ publish = false
 # straight from GitHub with NO [patch] override (that block is dropped
 # from .cargo/config.toml). NEVER commit a path/[patch] reference
 # (WORKFLOW-LB.md §3).
-lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
+lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.3" }
 
 # lb-ext-native — the ONLY platform dep an in-tree extension may carry
 # (WORKFLOW-LB.md §2). The child-side stdio wire (init/health/call/shutdown)
@@ -54,9 +54,9 @@ lb-ext-native = { git = "https://github.com/NubeDev/lb-ext-sdk", tag = "sdk-v0.4
 # resolve to the SAME git tag as `lb-node` (`node-v0.4.0`, no [patch]), so
 # cargo unifies the `lb-store` / `lb-auth` instances across `lb-node`,
 # `lb-host`, and the care crate — one world, no duplicate-type wall.
-lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
-lb-supervisor = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
-lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
+lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.3" }
+lb-supervisor = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.3" }
+lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.3" }
 
 # The binary-boundary runtime + error type. The host is a thin tokio app.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }

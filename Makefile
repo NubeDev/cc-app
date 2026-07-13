@@ -53,7 +53,7 @@ NODE_BIN := cc-node
 # tool (the lb-node pin in `rust/Cargo.toml`, the lb-{store,auth,host,role-gateway}
 # pins in `rust/extensions/care/Cargo.toml`, and the `lb-pack` install the Makefile
 # ships). Bump once; the workspace builds from the same tag the Makefile installs.
-LB_TAG ?= node-v0.4.2
+LB_TAG ?= node-v0.4.3
 
 # Dev ports — kept in sync with the code. The node mounts the SSE/HTTP gateway on GW_ADDR
 # when CC_GATEWAY_ADDR is set; the mobile shell's browser build points VITE_GATEWAY_URL at it.
