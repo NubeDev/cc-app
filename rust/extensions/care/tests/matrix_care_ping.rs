@@ -46,6 +46,21 @@ const COVERED_VERBS: &[&str] = &[
     "invite.list",
     "invite.resend",
     "invite.revoke",
+    // Milestone 06 — attendance. Cross-family + pickup-gate deny sweep in
+    // `tests/matrix_attendance.rs`; per-verb in-file tests (rule-7 list scope,
+    // pickup-gate denies, kiosk/staff scope) in each verb's `src` module.
+    "attendance.check_in",
+    "attendance.check_out",
+    "attendance.list",
+    "attendance.now",
+    "attendance.correct",
+    // Milestone 07 — menus. The guardian medical-leak deny sweep is in
+    // `tests/matrix_menu_reads.rs` (Ana denied Mia's week, never sees another
+    // child's allergen); per-verb in-file tests cover room-scope + derivation.
+    "menu.set",
+    "menu.get",
+    "menu.week",
+    "menu.copy_week",
 ];
 
 #[test]
