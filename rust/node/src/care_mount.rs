@@ -131,6 +131,17 @@ fn approved_grant() -> Vec<String> {
         "invite.list",
         "invite.resend",
         "invite.revoke",
+        // milestone 06 — attendance
+        "attendance.check_in",
+        "attendance.check_out",
+        "attendance.list",
+        "attendance.now",
+        "attendance.correct",
+        // milestone 07 — menus
+        "menu.set",
+        "menu.get",
+        "menu.week",
+        "menu.copy_week",
     ] {
         approved.push(format!("mcp:care.{verb}:call"));
     }
@@ -146,6 +157,8 @@ fn approved_grant() -> Vec<String> {
         "guardianship",
         "enrollment",
         "invite",
+        "attendance_event",
+        "menu",
     ] {
         approved.push(format!("store:{table}:write"));
     }

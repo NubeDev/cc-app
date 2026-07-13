@@ -4,6 +4,7 @@ import { Home, LogOut } from "lucide-react";
 import { useT } from "../hooks/useT";
 import { gateway } from "../api/gateway";
 import { authApi } from "../api/auth";
+import { useWorkspaces } from "../hooks/useWorkspaces";
 import { ThemeControls } from "../components/ThemeControls";
 import { Button } from "../components/ui/button";
 
@@ -29,6 +30,20 @@ export function ExtMountPage() {
   const nav = useNavigate();
   const { workspaceId = "" } = useParams();
   const hostRef = useRef<HTMLDivElement>(null);
+  // The caller's ROLE in this workspace — the ext needs it for role-aware nav
+  // (guardian week vs staff serving vs admin planner; the attendance dashboard).
+  // The mount context is what the ext's `useSession()` returns, so the role MUST
+  // travel through it (the shell knows it from `/api/me/workspaces`; the ext has
+  // no other source). We wait for the workspace list to resolve before mounting
+  // so the ext never renders its nav against an unknown role (which would hide
+  // the admin/staff surfaces). `data === null` = still loading; an error or an
+  // absent membership resolves the role to a safe empty (the ext treats an
+  // unknown role as the least-privileged guardian surface — the backend enforces
+  // the real caps regardless, rule 10).
+  const { data: workspaces, error: wsError } = useWorkspaces();
+  const wsResolved = workspaces !== null || wsError !== null;
+  const role = workspaces?.find((w) => w.id === workspaceId)?.role ?? "";
+
   // Loading until the remote's `mount` has run. IMPORTANT: the SDK's `mountScoped`
   // APPENDS a scoped `[data-ext-root]` into the host el (it never clears it), so a
   // skeleton placed INSIDE the mount target would never be removed — it must be a
@@ -36,7 +51,9 @@ export function ExtMountPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!hostRef.current) return;
+    // Hold the mount until the role is known, so the ext's nav renders against
+    // the real role on first paint (no admin-tabs flash-in / flash-out).
+    if (!hostRef.current || !wsResolved) return;
     const el = hostRef.current;
     let teardown: void | (() => void);
     let cancelled = false;
@@ -45,7 +62,16 @@ export function ExtMountPage() {
     loadCareRemote()
       .then((remote) => {
         if (cancelled || !hostRef.current) return;
-        teardown = remote.mount(el, { workspace: workspaceId }, bridge);
+        // The session the ext's `useSession()` reads: the workspace plus the
+        // caller's role in it. The SDK forwards these extra ctx fields to the
+        // ext verbatim (its runtime populates `useSession` from the mount ctx —
+        // "extra fields role/locale/sub are populated by the host session");
+        // `PageCtx` only *types* `workspace`, so we build the ctx as a widened
+        // variable (a fresh object literal at the call site would trip the
+        // excess-property check on that lagging type). `workspace` is kept for
+        // back-compat; `workspaceId` is the CareSession field name the ext uses.
+        const ctx = { workspace: workspaceId, workspaceId, role };
+        teardown = remote.mount(el, ctx, bridge);
         setLoading(false);
       })
       .catch(() => {
@@ -58,7 +84,7 @@ export function ExtMountPage() {
       cancelled = true;
       if (typeof teardown === "function") teardown();
     };
-  }, [workspaceId]);
+  }, [workspaceId, role, wsResolved]);
 
   // Switch workspace: back to the picker (the shell's home). Tears down happens
   // via the effect cleanup when this route unmounts.

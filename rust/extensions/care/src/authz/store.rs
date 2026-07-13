@@ -160,6 +160,53 @@ impl RecordStore {
         }
     }
 
+    /// Every record's `(id, data)` pair in `table` — the admin-path list that
+    /// needs the STORE ID alongside the record (a list verb returns `{ id,
+    /// ...data }` so the UI can address, select, and route by id; the record
+    /// body itself carries no id). `id` is the bare key (`possums`, not
+    /// `room:possums`) via `meta::id(id)` — the same form `read`/`write` take.
+    /// Backend-symmetric: both paths run the same `SELECT meta::id(id) AS rid,
+    /// data` and zip the two columns.
+    pub async fn query_rows(&self, table: &str) -> Result<Vec<(String, Value)>, RecordError> {
+        match self {
+            RecordStore::Local { store, ws } => {
+                let mut resp = store
+                    .query_ws(
+                        ws,
+                        "SELECT meta::id(id) AS rid, data FROM type::table($tb)",
+                        vec![("tb".into(), json!(table))],
+                    )
+                    .await
+                    .map_err(|e| RecordError::Store(e.to_string()))?;
+                let ids: Vec<String> = resp.take::<Vec<String>>((0, "rid")).unwrap_or_default();
+                let data: Vec<Value> = resp.take::<Vec<Value>>((0, "data")).unwrap_or_default();
+                Ok(ids.into_iter().zip(data).collect())
+            }
+            RecordStore::Callback { client, .. } => {
+                let out = query(
+                    client,
+                    "SELECT meta::id(id) AS rid, data FROM type::table($tb)",
+                    json!({ "tb": table }),
+                )
+                .await?;
+                let rows = out
+                    .get("rows")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|r| {
+                                let id = r.get("rid").and_then(Value::as_str)?.to_string();
+                                let data = r.get("data").cloned()?;
+                                Some((id, data))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Ok(rows)
+            }
+        }
+    }
+
     /// Every record's inner `data` value in `table` (the admin-path list). The
     /// same rows `SELECT data FROM <table>` yields via `query_ws` on the local
     /// path — a `Vec<Value>` of the unwrapped records.

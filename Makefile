@@ -112,7 +112,7 @@ EXT_UI_DIST  := $(BE_DIR)/extensions/$(EXT)/ui/dist
 EXT_UI_SERVE := $(BE_DIR)/extensions-ui/$(EXT)
 
 .PHONY: setup build build-be build-ui build-ext build-care \
-        dev cloud ui seed e2e e2e-ui \
+        dev cloud ui seed demo-seed e2e e2e-ui \
         pack publish-ext trusted-pubkey \
         test test-be test-ui lint fmt fmt-check size i18n-check clean kill purge-store
 
@@ -177,6 +177,15 @@ ui:
 # Prints the seeded email/password to log in with. Override via SEED_EMAIL / SEED_PASSWORD / WS.
 seed:
 	GW_URL=$(GW_URL) WS=$(WS) ADMIN_USER=$(SEED_USER) ADMIN_PASSWORD=$(ADMIN_PASSWORD) bash scripts/seed.sh
+
+# Rich DEMO data on top of `make seed` — a multi-room roster of children with varied
+# allergies + authorized pickups, enrollments, a planned menu week (with resolved AND
+# unresolved substitutions for the red flags), and today's attendance (children in/out
+# + staff present so the occupancy dashboard is non-empty). Real write path only
+# (rule 4), idempotent. Prereq: `make dev` running + `make seed` (creates the login +
+# the 'sunshine' center this builds on).
+demo-seed:
+	GW_URL=$(GW_URL) WS=$(WS) ADMIN_USER=$(SEED_USER) ADMIN_PASSWORD=$(ADMIN_PASSWORD) bash scripts/demo-seed.sh
 
 # End-to-end smoke test against a RUNNING node ($(GW_URL)) over the real gateway routes — session
 # mint, the auth wall (401/403 negatives), credential seeding, and the care roster. No mocks

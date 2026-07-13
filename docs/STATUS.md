@@ -85,7 +85,32 @@ tags cut locally + proven via `[patch]`, NOT yet pushed)
 > gated. Full write-up + Gap 3 CLOSED:
 > `docs/debugging/authz/native-sidecar-not-spawned-and-caller-identity-not-propagated.md`.
 
-**MILESTONES 00 + 01 + 02 + 03 + 04 + 05 CLOSED.** Era-2 WRITE is LIVE
+> **MILESTONES 06 (attendance) + 07 (menus) CLOSED (2026-07-13).** Both open,
+> both no-lb-dependency, built in one session as parallel vertical slices.
+> **m07 menus:** the fixed top-9 allergen enum + slot enum (`menu/allergen.rs`),
+> the `menu` record (`menu/records.rs`), and the **substitution derivation**
+> (`menu/derive.rs` — the food-safety control, three false-negative guards:
+> alias/plural fold, untaggable-flags-conservatively, unresolved-is-loud) drive
+> `menu.set/get/week/copy_week`. `menu.week` is the guardian medical-leak
+> surface — `assert_reach` first, only the asking child's derived rows.
+> **m06 attendance:** the append-only `attendance_event` ledger, the **pickup
+> gate** (`attendance/gate.rs` pure decision + `authz/pickup.rs` resolver behind
+> the fence — custody-hold-first, admin-capped audited override, localized
+> `PickupDeny` enum), and the derived `now` occupancy fold drive
+> `attendance.check_in/check_out/list/now/correct`. Kiosk = an lb api-key `key:`
+> principal (api-keys verified shipped). **UI:** 6 role-aware shadcn screens
+> (menu planner/serving/guardian-week; attendance kiosk-roster/dashboard),
+> semantic tokens, en+es, wired into a role-aware TabBar (the ext mount context
+> now threads the caller's workspace role — it previously dropped it). **Green:**
+> 160 care lib + 11 new matrix rows + cc-node tests; all 4 fences; `tsc` + `vite
+> build`; **`make e2e-ui` 8/8 incl. an es-locale flow on a real seeded node.**
+> An adversarial rule-7 pass found + we fixed 3 issues (a CRITICAL derivation
+> miss on plural allergy spellings, a HIGH custody-hold fail-open, a LOW menu
+> write room-scope). Session doc:
+> [`sessions/care/06-07-attendance-menus-session.md`](sessions/care/06-07-attendance-menus-session.md).
+> **Bus-event emit for the feed is DEFERRED → m08** (no feed consumer yet).
+
+**MILESTONES 00 + 01 + 02 + 03 + 04 + 05 + 06 + 07 CLOSED.** Era-2 WRITE is LIVE
 (lb `node-v0.3.3` shipped both the `grants.*`/`roles.*`/`teams.*` MCP
 routing fix AND the published pack toolchain — `node-v0.3.2` carried the
 routing fix; `node-v0.3.3` carried the pack toolchain publish). The
@@ -270,9 +295,8 @@ see `Makefile` §LB_TAG + §trusted-pubkey).
   (deferred this session; records/verbs it lands into are all shipped).
   Accepts children+guardians+edges, per-item results, hard-fail on medical
   fields, idempotent on natural keys; 40-row fixture, 2 bad rows → 38 land.
-- **Milestones 06 + 07 + 08 + 09 + 10**: per the build map. m06 is the
-  NEXT UP (see below) — the daily-feed golden path (the admin-facing
-  side of milestone 05's accept lands a feed screen).
+- **Milestones 06 + 07 CLOSED (2026-07-13)** — attendance + menus (see the
+  banner above). **08 + 09 + 10** remain: m08 (daily-feed) is NEXT UP (below).
 - **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
   stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
 
@@ -299,22 +323,18 @@ credential-mode work and is intentional until those tags are pushed.)
 
 ## Next up
 
-**Milestone 06 — daily-feed** (care ext + `ui/`): the family-facing
-landing a guardian sees on their FIRST SIGN-IN (the m05 deliverable the
-golden path depends on). The chokepoint is wired; the cross-family deny
-test proves rule 7 over the live callback. m06 lands the admin's
-"send a daily update" surface (`menus-scope.md` substitution flags feed
-in; `daily-feed-scope.md` carries the canonical shape: photo + note +
-allergy check + which guardians receive it — the per-edge
-`receives_daily_feed` flag the m03 family/edges editor sets), plus
-the guardian's read surface (the feed list, expandable per child,
-anchored at the children they hold a live edge to — `reachable_children`
-via the chokepoint) and the i18n keys for both (en + es parity, gate
-i18n-check.mjs). It exercises the m05 accept path end-to-end: guardian
-lands → sees their child's feed → feeds compose from `menus.*` ×
-`child.allergies`. Then m07 (messaging), m08 (attendance), m09 (the
-workforce-side), m10 (the UI polish / PWA install path). All chained
-off the chokepoint.
+**Milestone 08 — daily-feed** (care ext + `ui/`): the family-facing feed a
+guardian sees (photo + note + allergy check + which guardians receive it — the
+per-edge `receives_daily_feed` flag). It DEPENDS on m06 + m07 (both now closed):
+the feed composes from `menu.*` × `child.allergies` (m07 derivation) and
+consumes the attendance bus event (m06's deferred emit lands HERE — agree the
+subject shape and wire the ledger append to it). The chokepoint's
+`reachable_children` anchors the guardian read; SSE + push are the motion half.
+Then m09 (messaging), m10 (hardening / PWA install path). All chained off the
+chokepoint.
+
+**One deferral carried out of m06:** the attendance→feed bus event emit (no feed
+consumer existed at m06). Do it first thing in m08.
 
 ## Non-goals (unchanged)
 

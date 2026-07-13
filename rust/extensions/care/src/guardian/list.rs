@@ -30,18 +30,23 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
         return Ok("[]".to_string());
     }
 
-    // Admin path: list every guardian row, schema-stable SurrealQL.
-    let data_rows: Vec<serde_json::Value> = cp
+    // Admin path: list every guardian row, each carrying its store `id`
+    // (`{ id, ...guardian }`) so the UI can address a guardian by id.
+    let rows: Vec<(String, serde_json::Value)> = cp
         .records()
-        .query_data("guardian")
+        .query_rows("guardian")
         .await
         .map_err(|e| format!("store denied the guardian list: {e}"))?;
-    let mut out: Vec<Guardian> = Vec::new();
-    for row in data_rows {
-        if let Ok(g) = serde_json::from_value::<Guardian>(row) {
-            out.push(g);
-        }
-    }
+    let out: Vec<serde_json::Value> = rows
+        .into_iter()
+        .filter(|(_, v)| serde_json::from_value::<Guardian>(v.clone()).is_ok())
+        .map(|(id, mut v)| {
+            if let Some(o) = v.as_object_mut() {
+                o.insert("id".into(), serde_json::Value::String(id));
+            }
+            v
+        })
+        .collect();
     serde_json::to_string(&out).map_err(|e| format!("serialize reply: {e}"))
 }
 

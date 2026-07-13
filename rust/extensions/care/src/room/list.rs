@@ -41,32 +41,35 @@ pub async fn list(cp: &Chokepoint, principal: &Principal, _input: &str) -> Resul
         if rooms.is_empty() || rooms == vec!["*".to_string()] {
             return Ok("[]".to_string());
         }
-        // Per-room read for the resolved set. An empty / wildcard
-        // returns an empty list; otherwise we read each room row.
-        let mut out: Vec<Room> = Vec::new();
+        // Per-room read for the resolved set. Each row carries its store `id`
+        // (the reach id IS the record id) so the UI can select/route by it.
+        let mut out: Vec<serde_json::Value> = Vec::new();
         for id in rooms {
             if let Ok(Some(v)) = cp.records().read("room", &id).await {
-                if let Ok(r) = serde_json::from_value::<Room>(v) {
-                    out.push(r);
-                }
+                out.push(with_id(&id, v));
             }
         }
         return serde_json::to_string(&out).map_err(|e| format!("serialize: {e}"));
     }
 
-    // Admin path: list every room.
-    let data_rows: Vec<serde_json::Value> = cp
+    // Admin path: list every room, each carrying its store `id`.
+    let rows: Vec<(String, serde_json::Value)> = cp
         .records()
-        .query_data("room")
+        .query_rows("room")
         .await
         .map_err(|e| format!("store denied: {e}"))?;
-    let mut out: Vec<Room> = Vec::new();
-    for row in data_rows {
-        if let Ok(r) = serde_json::from_value::<Room>(row) {
-            out.push(r);
-        }
-    }
+    let out: Vec<serde_json::Value> = rows.into_iter().map(|(id, v)| with_id(&id, v)).collect();
     serde_json::to_string(&out).map_err(|e| format!("serialize: {e}"))
+}
+
+/// Merge the store `id` into a record's `data` object so a list row is
+/// `{ id, ...record }` — the shape the UI addresses rooms by (the record body
+/// itself carries no id). A non-object value is returned unchanged (defensive).
+pub(crate) fn with_id(id: &str, mut data: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = data.as_object_mut() {
+        obj.insert("id".to_string(), serde_json::Value::String(id.to_string()));
+    }
+    data
 }
 
 #[cfg(test)]
@@ -112,6 +115,11 @@ mod tests {
         let out = list(&cp, &p, "").await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
         assert_eq!(v.len(), 2);
+        // Each row MUST carry its store id (the UI selects/routes by it — the
+        // record body has none; a missing id left the room picker unusable).
+        let ids: std::collections::HashSet<&str> =
+            v.iter().filter_map(|r| r["id"].as_str()).collect();
+        assert!(ids.contains("possums") && ids.contains("koalas"), "rows carry their id: {v:?}");
     }
 
     #[tokio::test]

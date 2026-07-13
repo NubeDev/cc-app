@@ -72,14 +72,19 @@ fail=0
 hits=0
 for f in "${files[@]}"; do
   [ -f "$f" ] || continue
-  # The fence fires on the actual leak pattern: a `lb_store::read` /
-  # `lb_store::list` call whose table name is `"guardianship"`. That is
-  # the chokepoint's read path; reproducing it anywhere else is exactly
-  # what CLAUDE.md rule 7 forbids. Mentions in docs, comments, module
-  # names, or test fixtures (which seed records by their table name)
-  # are intentionally NOT flagged — they're the documentation of the
-  # chokepoint's contract, not the leak pattern.
-  hits_in_file="$(grep -nE '(read|list)\s*\(.*"guardianship"|"guardianship"\s*,|\bguardianship\s*=>' "$f" 2>/dev/null || true)"
+  # The fence fires on the actual leak pattern: a READ of the `guardianship`
+  # table (`read` / `list` / `query` / a `SELECT … guardianship`) outside
+  # authz/. That is the chokepoint's read path; reproducing it anywhere else is
+  # exactly what CLAUDE.md rule 7 forbids. Mentions in docs, comments, module
+  # names, and test FIXTURES that SEED the table (a `store_create` / `create` /
+  # `write` of `guardianship`) are intentionally NOT flagged — seeding a record
+  # is not reading it, and the leak the rule guards is a read that exposes one
+  # family's edge to another. So we match the read verbs, then strip any line
+  # that is a write/seed of the table (the `store_create`/`create`/`write` form
+  # a unit test uses to build its fixture via the real write path).
+  hits_in_file="$(grep -nE '(read|list|query|query_ws|query_data)\s*\(.*"guardianship"|SELECT.*"guardianship"|\bguardianship\s*=>' "$f" 2>/dev/null \
+    | grep -vE '(store_create|[^a-z_]create|\bwrite)\s*\(' \
+    || true)"
   if [ -n "$hits_in_file" ]; then
     printf 'AUTHZ-FENCE: %s reads the "guardianship" table outside authz/ — route through care::authz (CLAUDE.md rule 7):\n' "$f"
     printf '%s\n' "$hits_in_file"

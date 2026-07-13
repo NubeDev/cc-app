@@ -1,10 +1,10 @@
-import { Home, Users, Settings } from "lucide-react";
+import { Home, Users, Settings, UtensilsCrossed, ClipboardCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useT } from "../hooks/useT";
 import { useCareSession } from "../hooks/useCareSession";
 import { cn } from "../lib/cn";
 
-type TabKey = "today" | "children" | "admin";
+export type TabKey = "today" | "children" | "menus" | "attendance" | "admin";
 
 interface Props {
   active: TabKey;
@@ -14,15 +14,23 @@ interface Props {
 
 // The iOS bottom tab bar (thumb zone), translucent backdrop-blur chrome. Icons
 // carry recognition, labels carry clarity; the active tab tints to the accent.
+// Tabs are role-aware: guardians get Today + Menus; staff/admin add Attendance;
+// admin adds Children + the Admin surface. Menus is universal — each role sees
+// its own menu surface (guardian week / staff serving / admin planner).
 export function TabBar({ active, onChange, showAdmin }: Props) {
   const t = useT();
   const session = useCareSession();
-  const isAdmin = showAdmin ?? session?.role === "admin";
+  const role = session?.role ?? "guardian";
+  const isAdmin = showAdmin ?? role === "admin";
+  const isStaffOrAdmin = role === "admin" || role === "staff" || role === "kiosk";
 
   const items: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
     { key: "today", label: t("nav.feed"), icon: Home },
-    { key: "children", label: t("nav.children"), icon: Users },
   ];
+  if (isAdmin) items.push({ key: "children", label: t("nav.children"), icon: Users });
+  if (isStaffOrAdmin)
+    items.push({ key: "attendance", label: t("nav.attendance"), icon: ClipboardCheck });
+  items.push({ key: "menus", label: t("nav.menus"), icon: UtensilsCrossed });
   if (isAdmin) items.push({ key: "admin", label: t("nav.admin"), icon: Settings });
 
   return (
