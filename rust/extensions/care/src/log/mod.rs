@@ -23,9 +23,10 @@
 // docs/build/08-daily-feed.md work items. The orchestrator-owned schema below
 // is complete and is what those verbs build against.
 
+mod payload;
 mod records;
+mod validate;
 
-pub use records::{
-    feed_subject, validate_timestamp, DailyLog, IncidentPayload, LogError, LogKind, MealPayload,
-    MedicationPayload, NapPayload, PushPolicy,
-};
+pub use payload::{IncidentPayload, MealPayload, MedicationPayload, NapPayload};
+pub use records::{feed_subject, DailyLog, LogKind, PushPolicy};
+pub use validate::{validate_timestamp, LogError};

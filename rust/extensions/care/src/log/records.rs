@@ -30,8 +30,8 @@
 //! layer validates the REQUIRED fields per kind at write (`LogKind::validate`),
 //! so an incident can never land without its regulated fields.
 
+use super::payload::{IncidentPayload, MealPayload, MedicationPayload, NapPayload};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// One `daily_log` entry (workspace-scoped, append-only). Always for exactly
 /// ONE child — the multi-child add fans out to N of these.
@@ -165,61 +165,6 @@ pub enum PushPolicy {
     FeedThenPrefs,
 }
 
-/// Nap payload — start/end ISO strings (either may be open while the child
-/// sleeps; the pair is closed by a correction/second entry per the scope's
-/// nap start/end shape).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NapPayload {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub start: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end: Option<String>,
-}
-
-/// Meal payload — which slot + how much was eaten (an enum, rendered per
-/// locale; never free text so a Spanish parent reads "la mayoría").
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MealPayload {
-    /// The meal slot key (`breakfast|lunch|snack|dinner`) — matches
-    /// `menu::Slot::key()` so the feed can cross-reference the day's menu +
-    /// the child's derived substitution (daily-feed-scope §"composes from
-    /// menu.* × child.allergies").
-    pub slot: String,
-    /// How much was eaten — an enum key (`all|most|some|none`), rendered per
-    /// locale (`log.portion.<key>`).
-    pub portion: String,
-}
-
-/// Incident payload — the REQUIRED regulated fields (daily-feed-scope §Goals:
-/// "incidents carry required fields (what/where/action) and a
-/// guardian-acknowledgement flag"). All three strings are validated non-empty
-/// at write; the ack flag is set false at write, flipped by the guardian ack.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct IncidentPayload {
-    /// WHAT happened (required, non-empty; never translated — recorded as-is).
-    pub what: String,
-    /// WHERE it happened (required, non-empty).
-    #[serde(rename = "where")]
-    pub where_: String,
-    /// The ACTION taken (required, non-empty).
-    pub action: String,
-    /// Whether a guardian has acknowledged reading this incident. Set `false`
-    /// at write; flipped by the ack path (best-effort v1 — the resolved open
-    /// question; recorded for the center's file).
-    #[serde(default)]
-    pub acknowledged: bool,
-}
-
-/// Medication payload — dose + witness (daily-feed-scope §Goals: "medications
-/// record dose + witness"). Both required non-empty at write.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MedicationPayload {
-    /// The dose administered (required, non-empty; free text — never translated).
-    pub dose: String,
-    /// The witnessing staff member's `sub` or name (required, non-empty).
-    pub witness: String,
-}
-
 /// The per-child bus subject a new entry publishes onto (daily-feed-scope
 /// §"Intent": "one bus subject per child, filtered at emit"). The SSE feed
 /// (`care.feed.watch`) subscribes to this subject via the gateway stream route.
@@ -234,125 +179,6 @@ pub fn feed_subject(child_id: &str) -> String {
     // A join, not a `format!` with a literal, so this is pure key construction
     // (distinct from user-facing chrome — rule 8 lint). `care.feed.<child>`.
     ["care.feed", child_id].join(".")
-}
-
-/// Typed errors the verb layer maps to the MCP `ToolError` shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LogError {
-    /// The id was empty / whitespace / too long.
-    InvalidId(String),
-    /// The `kind` value is outside the eight-type set.
-    InvalidKind(String),
-    /// The `at` timestamp was empty or malformed.
-    InvalidTimestamp(String),
-    /// A required field for this kind was empty (incident what/where/action,
-    /// medication dose/witness, or a core field like child_id/room_id).
-    MissingField(&'static str),
-    /// A photo attach was attempted for a child whose `photos_allowed` consent
-    /// is not set — blocked AT WRITE (daily-feed-scope §"Photo consent").
-    PhotoConsentDenied(String),
-    /// The entry already exists (append is first-write on the entry id).
-    AlreadyExists(String),
-    /// The referenced record (child / corrected entry) was not found.
-    NotFound(String),
-    /// The store denied the read or write.
-    StoreDenied(String),
-}
-
-impl fmt::Display for LogError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LogError::InvalidId(s) => write!(f, "invalid id: {s:?}"),
-            LogError::InvalidKind(s) => write!(f, "invalid kind: {s:?}"),
-            LogError::InvalidTimestamp(s) => write!(f, "invalid timestamp: {s:?}"),
-            LogError::MissingField(s) => write!(f, "missing required field: {s}"),
-            LogError::PhotoConsentDenied(c) => {
-                write!(f, "photo consent denied for child: {c}")
-            }
-            LogError::AlreadyExists(s) => write!(f, "daily log entry already exists: {s}"),
-            LogError::NotFound(s) => write!(f, "not found: {s}"),
-            LogError::StoreDenied(what) => write!(f, "store denied: {what}"),
-        }
-    }
-}
-
-impl std::error::Error for LogError {}
-
-impl LogKind {
-    /// Validate the REQUIRED payload fields for this kind (daily-feed-scope
-    /// §Goals). An incident MUST carry non-empty what/where/action; a
-    /// medication MUST carry non-empty dose/witness; a meal MUST carry a
-    /// slot + portion. The other types have no required payload. Called by
-    /// `log::add` at the write boundary so a regulated entry can never land
-    /// half-formed.
-    pub fn validate(&self, log: &DailyLog) -> Result<(), LogError> {
-        match self {
-            LogKind::Incident => {
-                let i = log
-                    .incident
-                    .as_ref()
-                    .ok_or(LogError::MissingField("incident"))?;
-                if i.what.trim().is_empty() {
-                    return Err(LogError::MissingField("incident.what"));
-                }
-                if i.where_.trim().is_empty() {
-                    return Err(LogError::MissingField("incident.where"));
-                }
-                if i.action.trim().is_empty() {
-                    return Err(LogError::MissingField("incident.action"));
-                }
-                Ok(())
-            }
-            LogKind::Medication => {
-                let m = log
-                    .medication
-                    .as_ref()
-                    .ok_or(LogError::MissingField("medication"))?;
-                if m.dose.trim().is_empty() {
-                    return Err(LogError::MissingField("medication.dose"));
-                }
-                if m.witness.trim().is_empty() {
-                    return Err(LogError::MissingField("medication.witness"));
-                }
-                Ok(())
-            }
-            LogKind::Meal => {
-                let m = log.meal.as_ref().ok_or(LogError::MissingField("meal"))?;
-                if m.slot.trim().is_empty() {
-                    return Err(LogError::MissingField("meal.slot"));
-                }
-                if m.portion.trim().is_empty() {
-                    return Err(LogError::MissingField("meal.portion"));
-                }
-                Ok(())
-            }
-            // Nap/diaper/activity/photo/note carry no hard-required payload.
-            _ => Ok(()),
-        }
-    }
-}
-
-/// Validate an ISO-8601 timestamp shape (`YYYY-MM-DDTHH:MM...`). Shape-only —
-/// the device supplies real wall time; we reject the obviously-malformed so a
-/// garbage `at` never fragments the feed's time ordering. Mirrors the
-/// attendance ledger's `validate_timestamp` (same posture, one guard per table).
-pub fn validate_timestamp(s: &str) -> Result<(), LogError> {
-    let b = s.as_bytes();
-    let ok = b.len() >= 19
-        && b[4] == b'-'
-        && b[7] == b'-'
-        && (b[10] == b'T' || b[10] == b' ')
-        && b[13] == b':'
-        && b[16] == b':'
-        && b[..10]
-            .iter()
-            .enumerate()
-            .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit());
-    if ok {
-        Ok(())
-    } else {
-        Err(LogError::InvalidTimestamp(s.to_string()))
-    }
 }
 
 #[cfg(test)]
@@ -382,58 +208,6 @@ mod tests {
     #[test]
     fn label_key_is_the_catalog_suffix() {
         assert_eq!(LogKind::Nap.label_key(), "log.type.nap");
-    }
-
-    #[test]
-    fn incident_requires_all_three_regulated_fields() {
-        let mut log = base_log(LogKind::Incident);
-        // No payload at all → missing incident.
-        assert_eq!(
-            LogKind::Incident.validate(&log),
-            Err(LogError::MissingField("incident"))
-        );
-        // Empty `where` → missing incident.where.
-        log.incident = Some(IncidentPayload {
-            what: "scraped knee".into(),
-            where_: "  ".into(),
-            action: "cleaned + plaster".into(),
-            acknowledged: false,
-        });
-        assert_eq!(
-            LogKind::Incident.validate(&log),
-            Err(LogError::MissingField("incident.where"))
-        );
-        // All three present → ok.
-        log.incident = Some(IncidentPayload {
-            what: "scraped knee".into(),
-            where_: "playground".into(),
-            action: "cleaned + plaster".into(),
-            acknowledged: false,
-        });
-        assert!(LogKind::Incident.validate(&log).is_ok());
-    }
-
-    #[test]
-    fn medication_requires_dose_and_witness() {
-        let mut log = base_log(LogKind::Medication);
-        assert_eq!(
-            LogKind::Medication.validate(&log),
-            Err(LogError::MissingField("medication"))
-        );
-        log.medication = Some(MedicationPayload {
-            dose: "5ml".into(),
-            witness: "".into(),
-        });
-        assert_eq!(
-            LogKind::Medication.validate(&log),
-            Err(LogError::MissingField("medication.witness"))
-        );
-    }
-
-    #[test]
-    fn timestamp_shape_is_enforced() {
-        assert!(validate_timestamp("2026-07-14T11:30:00Z").is_ok());
-        assert!(validate_timestamp("lunchtime").is_err());
     }
 
     #[test]

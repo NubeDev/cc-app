@@ -321,25 +321,30 @@ releases?" check (WORKFLOW-LB.md §4). (Milestone 00 originally dropped the patc
 `node-v0.3.0`; the `*-v0.4.x` local-tag posture was reintroduced for the admin-marker +
 credential-mode work and is intentional until those tags are pushed.)
 
-## ⛔ BUILD BLOCKED (2026-07-13) — cannot build from published tags
+## ✅ BUILD BLOCK RESOLVED (2026-07-13) — builds clean from published tags
 
-A fresh session cannot `cargo build`/`test`: the declared pins say `node-v0.4.2`
-but the remotes hold ONLY `node-v0.4.0` (`NubeDev/lb`) + `sdk-v0.4.0`
-(`NubeDev/lb-ext-sdk`). The `*-v0.4.1`/`v0.4.2` tags (admin-marker +
-credential-mode) were **never pushed** — they lived only as local sibling tags +
-a git-ignored `[patch]`, neither of which survives into this environment. AND
-cc-app's shipped `principal_from_caller` reads `caller.admin`, a field that does
-NOT exist on `sdk-v0.4.0`'s `Caller` (it is the unpushed `sdk-v0.4.1` addition) —
-so even repointing pins to `node-v0.4.0` won't compile. Deriving admin from
-`caller.role` instead is a rule-7 regression (role is cosmetic `member` for
-everyone). **Genuine fix is lb/SDK-owned: push `sdk-v0.4.1` + `node-v0.4.1/0.4.2`,
-then drop the recreated `[patch]`.** Full analysis + the `[patch]` recreation
-recipe + sibling prerequisites: [`debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md`](debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md).
+The `*-v0.4.1`/`v0.4.2` tags **are now pushed** to the remotes (`git ls-remote`
+confirms `node-v0.4.0/0.4.1/0.4.2` on `NubeDev/lb` and `sdk-v0.4.0/0.4.1` on
+`NubeDev/lb-ext-sdk`). The real remaining blocker was the **missed SDK pin**:
+`rust/Cargo.toml` still declared `lb-ext-native = sdk-v0.4.0`, which lacks the
+`Caller.admin` field that shipped `principal_from_caller` reads (`lib.rs:200`).
+**Fixed by the one-line pin bump `sdk-v0.4.0 → sdk-v0.4.1`** (care ext inherits
+via `workspace = true`). `cargo build --workspace` + `cargo test -p care` are
+GREEN from tags with **NO `.cargo/config.toml` and NO `[patch]`** — a clean
+"am I on releases?" pass (WORKFLOW-LB.md §4). (This box has a system C compiler,
+so the zigcc wiring the earlier local-dev posture described is not needed here.)
+Full history: [`debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md`](debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md).
 
 ## Milestone 08 (daily-feed) — STARTED (foundation only, un-compiled)
 
-The orchestrator-owned foundation is written (fence-clean: authz + hardcoded +
-file-size gates green; NOT yet compiled — see the build block above):
+The orchestrator-owned foundation is written, **COMPILED, and fence-clean**
+(authz + hardcoded + file-size gates green; `cargo test -p care` = 174 lib +
+all matrix suites green from published tags). The foundation was split to
+satisfy the ≤400-line FILE-LAYOUT limit (`records.rs` was 504): now
+`log/records.rs` (the core `DailyLog` record + `LogKind` + `feed_subject` +
+`PushPolicy`, 278L), `log/payload.rs` (the 4 type-specific payload structs,
+71L), `log/validate.rs` (`LogError` + `LogKind::validate` + `validate_timestamp`
++ their tests, 207L):
 - `log/records.rs` — the `daily_log` schema (8 types, type-specific payloads:
   nap start/end, meal slot+portion, incident required what/where/action + ack,
   medication dose+witness), `LogKind::validate` (regulated-field enforcement),
