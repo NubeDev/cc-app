@@ -54,6 +54,21 @@ pub fn approved_grant() -> Vec<String> {
         "invite.list",
         "invite.resend",
         "invite.revoke",
+        // milestone 06/07/08
+        "attendance.check_in",
+        "attendance.check_out",
+        "attendance.list",
+        "attendance.now",
+        "attendance.correct",
+        "menu.set",
+        "menu.get",
+        "menu.week",
+        "menu.copy_week",
+        "log.add",
+        "log.list",
+        "log.correct",
+        "log.day",
+        "feed.watch",
     ] {
         g.push(format!("mcp:care.{verb}:call"));
     }
@@ -68,6 +83,9 @@ pub fn approved_grant() -> Vec<String> {
         "guardianship",
         "enrollment",
         "invite",
+        "attendance_event",
+        "menu",
+        "daily_log",
     ] {
         g.push(format!("store:{table}:write"));
     }
@@ -81,6 +99,13 @@ pub fn approved_grant() -> Vec<String> {
         "invite.create",
         "invite.resend",
         "invite.revoke",
+        // milestone 08 — motion seams
+        "bus.publish",
+        "bus.watch",
+        "notify.send",
+        "media.upload_begin",
+        "media.upload_commit",
+        "media.get",
     ] {
         g.push(format!("mcp:{verb}:call"));
     }

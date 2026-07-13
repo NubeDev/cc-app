@@ -162,6 +162,17 @@ impl Chokepoint {
         self.reach.as_ref()
     }
 
+    /// The host-callback client for the MOTION seams (`bus.publish` /
+    /// `notify.send` / `media.*`) — the same `SidecarClient` reach + records
+    /// ride. `Some` only on the era-2/production path (a spawned sidecar with a
+    /// wired callback); `None` on the era-1/unit-test path, where the durable
+    /// record still lands but the bus/push side effects are skipped (the record
+    /// is the source of truth; motion is best-effort re-derivable from it). One
+    /// accessor so a verb body never reaches into `reach` internals.
+    pub fn host_client(&self) -> Option<&lb_ext_native::SidecarClient> {
+        self.reach.as_ref().map(|r| r.client())
+    }
+
     /// The record read/write seam every verb body reaches domain records
     /// through (Part B). Verb bodies MUST use this, never `cp.store` directly —
     /// `cp.store` is the era-1 chokepoint's own resolution store and is NOT the

@@ -165,6 +165,17 @@ pub enum PushPolicy {
     FeedThenPrefs,
 }
 
+/// The per-child entry id for a multi-child add fan-out — `<base>::<child_id>`.
+/// `log::add` takes ONE caller-supplied `entry_id` base (the gesture id) and
+/// derives one deterministic row id per tapped child, so the eight rows of a
+/// "lunch for the room" tap are independently addressable, correctable, and
+/// first-write idempotent (a re-tapped gesture with the same base conflicts,
+/// never silently double-logs). A join, not a `format!` with a literal — pure
+/// key construction (rule 8 lint). Same `::` separator as `authz::edge_id`.
+pub fn entry_id(base: &str, child_id: &str) -> String {
+    [base, child_id].join("::")
+}
+
 /// The per-child bus subject a new entry publishes onto (daily-feed-scope
 /// §"Intent": "one bus subject per child, filtered at emit"). The SSE feed
 /// (`care.feed.watch`) subscribes to this subject via the gateway stream route.

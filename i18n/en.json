@@ -82,6 +82,49 @@
       "custody_hold": "Custody note on file for {{name}} — read it before release."
     }
   },
+  "log": {
+    "added": "Logged {{type}} for {{count}} child(ren).",
+    "corrected": "Correction recorded for the {{type}} entry.",
+    "acknowledged": "Incident acknowledged.",
+    "type": {
+      "meal": "Meal",
+      "nap": "Nap",
+      "diaper": "Diaper",
+      "activity": "Activity",
+      "photo": "Photo",
+      "note": "Note",
+      "incident": "Incident",
+      "medication": "Medication"
+    },
+    "portion": {
+      "all": "ate everything",
+      "most": "ate most",
+      "some": "ate some",
+      "none": "ate nothing"
+    }
+  },
+  "push": {
+    "title": {
+      "meal": "Mealtime update",
+      "nap": "Nap update",
+      "diaper": "Diaper change",
+      "activity": "Activity update",
+      "photo": "New photo",
+      "note": "New note",
+      "incident": "Incident report for {{child}}",
+      "medication": "Medication given to {{child}}"
+    },
+    "body": {
+      "meal": "A new meal was logged for {{child}}.",
+      "nap": "A nap was logged for {{child}}.",
+      "diaper": "A diaper change was logged for {{child}}.",
+      "activity": "A new activity was logged for {{child}}.",
+      "photo": "A new photo of {{child}} was shared.",
+      "note": "A new note was added for {{child}}.",
+      "incident": "An incident involving {{child}} was recorded. Tap to read and acknowledge.",
+      "medication": "Medication was administered to {{child}}. Tap for details."
+    }
+  },
   "common": {
     "yes": "Yes",
     "no": "No",

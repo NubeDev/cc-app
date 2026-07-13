@@ -142,6 +142,12 @@ fn approved_grant() -> Vec<String> {
         "menu.get",
         "menu.week",
         "menu.copy_week",
+        // milestone 08 — daily feed
+        "log.add",
+        "log.list",
+        "log.correct",
+        "log.day",
+        "feed.watch",
     ] {
         approved.push(format!("mcp:care.{verb}:call"));
     }
@@ -159,8 +165,22 @@ fn approved_grant() -> Vec<String> {
         "invite",
         "attendance_event",
         "menu",
+        "daily_log",
     ] {
         approved.push(format!("store:{table}:write"));
+    }
+    // milestone 08 — the motion seams (bus emit + push + media photo path). The
+    // guardian SSE (`bus.watch`) is opened by the UI with its own token; the
+    // sidecar holds it so the reach-checked `feed.watch` authorization is coherent.
+    for verb in [
+        "bus.publish",
+        "bus.watch",
+        "notify.send",
+        "media.upload_begin",
+        "media.upload_commit",
+        "media.get",
+    ] {
+        approved.push(format!("mcp:{verb}:call"));
     }
     // 3. era-2 reach + grant derivation + invite host-callback verbs. Includes
     //    `care.reach.child` — lb's `grants.assign` no-widening rule requires the

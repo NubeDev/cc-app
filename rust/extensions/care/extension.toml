@@ -89,6 +89,12 @@ request = [
     "mcp:care.menu.get:call",
     "mcp:care.menu.week:call",
     "mcp:care.menu.copy_week:call",
+    # milestone 08 — daily feed (logs, photos, SSE, push)
+    "mcp:care.log.add:call",
+    "mcp:care.log.list:call",
+    "mcp:care.log.correct:call",
+    "mcp:care.log.day:call",
+    "mcp:care.feed.watch:call",
 
     # 2. generic store surface (Part B — record I/O over the host callback)
     "mcp:store.write:call",
@@ -105,6 +111,19 @@ request = [
     "store:invite:write",
     "store:attendance_event:write",
     "store:menu:write",
+    "store:daily_log:write",
+
+    # milestone 08 — the MOTION seams: publish "a new entry exists" onto the
+    # per-child bus subject, and enqueue must-deliver push to feed recipients.
+    # media.* is the photo path (begin/commit + reach-checked serve). bus.watch
+    # is the guardian SSE (the UI opens the gateway route with its own token; the
+    # ext requests it so the reach-checked feed.watch authorization is coherent).
+    "mcp:bus.publish:call",
+    "mcp:bus.watch:call",
+    "mcp:notify.send:call",
+    "mcp:media.upload_begin:call",
+    "mcp:media.upload_commit:call",
+    "mcp:media.get:call",
 
     # 3. era-2 reach + grant derivation + invites (host-callback verbs)
     "mcp:authz.check_scoped:call",
@@ -250,6 +269,23 @@ description = "Guardian view: a child's room week + ONLY that child's derived su
 name        = "menu.copy_week"
 description = "Copy a room's whole week to a target week (idempotent)."
 
+# --- milestone 08: daily feed (logs, photos, SSE, push) --------------------
+[[tools]]
+name        = "log.add"
+description = "Staff: append a daily-feed entry, multi-child atomic fan-out; photo consent enforced at write; bus emit + push per type policy."
+[[tools]]
+name        = "log.list"
+description = "The daily feed, role-filtered (admin all / staff room / guardian own-children via authz), cursor-paged."
+[[tools]]
+name        = "log.correct"
+description = "Append a compensating correction entry (correction_of); never edits."
+[[tools]]
+name        = "log.day"
+description = "The 'Leo's day' rollup (net timeline + per-type tally) the UI and AI consume; single-child reach-gated."
+[[tools]]
+name        = "feed.watch"
+description = "Authorize a guardian's live per-child SSE subscription (reach-checked); returns the gateway stream descriptor."
+
 # The PAGE this extension contributes to the sidebar (ui-federation). The
 # `entry` is the ESM remote the shell dynamic-imports, served under the
 # gateway's `/extensions/care/ui/` route.
@@ -272,6 +308,8 @@ scope = [
     "care.attendance.check_in", "care.attendance.check_out",
     "care.attendance.list", "care.attendance.now", "care.attendance.correct",
     "care.menu.set", "care.menu.get", "care.menu.week", "care.menu.copy_week",
+    "care.log.add", "care.log.list", "care.log.correct", "care.log.day",
+    "care.feed.watch",
 ]
 
 [visibility]
