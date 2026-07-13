@@ -67,6 +67,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .ok_or_else(|| format!("{}", GuardianshipError::NotFound(id.clone())))?;
 
     let was_live = row.get("live").and_then(|v| v.as_bool()).unwrap_or(false);
+    let was_messaging = row
+        .get("receives_messaging")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     // Validate + apply the relationship change (if any).
     if let Some(r) = &parsed.relationship {
@@ -127,6 +131,34 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 }
             };
             return Err(err.to_string());
+        }
+    }
+
+    // Keep channel membership in lockstep with the messaging-access transition
+    // (milestone 09). A guardian is a channel member iff `live && messaging`, so
+    // a flip of EITHER flag can add/remove the seat. Best-effort-but-surfaced (a
+    // missing grant is a lockout, a surviving grant a leak — both worth a retry);
+    // no host client ⇒ no-op. It does not roll back the edge (the durable flags
+    // are the source of truth; the healing sweep repairs a grant fault).
+    let now_messaging = parsed.receives_messaging.unwrap_or(was_messaging);
+    let was_member = was_live && was_messaging;
+    let now_member = now_live && now_messaging;
+    if was_member != now_member {
+        if let Some(client) = cp.host_client() {
+            let child_ch = crate::messaging::child_channel(&parsed.child_id);
+            let res = if now_member {
+                crate::messaging::reconcile::grant_membership(
+                    Some(client),
+                    &child_ch,
+                    &guardian_sub,
+                    crate::messaging::ChannelRole::Full,
+                )
+                .await
+            } else {
+                crate::messaging::reconcile::revoke_membership(Some(client), &child_ch, &guardian_sub)
+                    .await
+            };
+            res.map_err(|e| format!("channel membership update failed (retry via reconcile): {e}"))?;
         }
     }
 

@@ -89,6 +89,21 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         }
     }
 
+    // 3) Revoke the guardian's channel membership (milestone 09) in the same
+    //    breath — an ex-partner reading the child channel is the same severity as
+    //    a reach leak (`messaging-scope.md` §"Unlink = immediate removal"). This
+    //    revokes BOTH the child channel and (best-effort) the room channel the
+    //    child sits in. Idempotent (revoking an absent grant succeeds). A revoke
+    //    fault is surfaced (returned) — a surviving channel grant is a leak — but
+    //    the edge is already archived (reach denies), so we do not restore it: the
+    //    channel revoke is retried by the healing path, not by resurrecting reach.
+    if let Some(client) = cp.host_client() {
+        let child_ch = crate::messaging::child_channel(&parsed.child_id);
+        crate::messaging::reconcile::revoke_membership(Some(client), &child_ch, &guardian_sub)
+            .await
+            .map_err(|e| format!("channel membership revoke failed (retry unlink): {e}"))?;
+    }
+
     let reply = UnlinkReply {
         edge_id: id,
         message: t(
