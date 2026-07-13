@@ -62,6 +62,14 @@ pub struct EdgeFlags {
     /// is edges only). Never translated.
     #[serde(default)]
     pub custody_notes: Option<String>,
+    /// Does this guardian have messaging access to the child's channel
+    /// (milestone 09; `messaging-scope.md` open-question RESOLVED — a DISTINCT
+    /// flag, not `receives_daily_feed`: custody arrangements differ on exactly
+    /// this — an emergency contact may read the feed but not message the room).
+    /// The `reconcile` membership derivation reads THIS flag; a `false`/unlinked
+    /// edge gets no channel membership.
+    #[serde(default)]
+    pub receives_messaging: bool,
 }
 
 /// The relationship label — an enum key (the catalog owns the words per
@@ -183,5 +191,6 @@ mod tests {
         let f = EdgeFlags::default();
         assert!(!f.can_pickup && !f.receives_daily_feed && !f.receives_billing);
         assert!(!f.emergency_contact && f.custody_notes.is_none());
+        assert!(!f.receives_messaging);
     }
 }

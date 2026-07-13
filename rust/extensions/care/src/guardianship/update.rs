@@ -36,6 +36,9 @@ pub struct UpdateInput {
     pub emergency_contact: Option<bool>,
     #[serde(default)]
     pub custody_notes: Option<String>,
+    /// Milestone 09 — messaging access (a flip re-derives channel membership).
+    #[serde(default)]
+    pub receives_messaging: Option<bool>,
     #[serde(default)]
     pub locale: Option<String>,
 }
@@ -76,6 +79,7 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         ("receives_daily_feed", parsed.receives_daily_feed),
         ("receives_billing", parsed.receives_billing),
         ("emergency_contact", parsed.emergency_contact),
+        ("receives_messaging", parsed.receives_messaging),
     ] {
         if let Some(b) = val {
             row[key] = serde_json::Value::Bool(b);

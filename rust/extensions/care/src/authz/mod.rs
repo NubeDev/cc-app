@@ -316,3 +316,28 @@ pub async fn reachable_rooms(cp: &Chokepoint, principal: &Principal) -> Vec<Stri
 pub async fn feed_recipients(cp: &Chokepoint, child_id: &str) -> Vec<String> {
     scope::resolve_era1_feed_recipients(cp, child_id).await
 }
+
+/// The DERIVED membership of a care-provisioned channel (milestone 09). The one
+/// membership source the reconciler grants/revokes against — behind the fence
+/// (it reads `guardianship`). See [`scope::resolve_child_channel_members`] /
+/// [`scope::resolve_room_channel_members`] for the derivation + the fail-closed
+/// posture. A center announcements channel has no derived membership here: its
+/// readers are every guardian in the center (granted ReadOnly by the
+/// announcements-provisioning path), not a per-record derivation.
+pub async fn channel_members(cp: &Chokepoint, channel: &ChannelTarget<'_>) -> Vec<ChannelMember> {
+    match channel {
+        ChannelTarget::Child(id) => scope::resolve_child_channel_members(cp, id).await,
+        ChannelTarget::Room(id) => scope::resolve_room_channel_members(cp, id).await,
+    }
+}
+
+/// Which care channel to derive membership for (child or room — the two
+/// record-derived channels; a center announcements channel is grant-on-provision,
+/// not derived).
+#[derive(Debug, Clone, Copy)]
+pub enum ChannelTarget<'a> {
+    Child(&'a str),
+    Room(&'a str),
+}
+
+pub use scope::ChannelMember;

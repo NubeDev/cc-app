@@ -9,10 +9,18 @@ Scope: [`../scope/care/messaging-scope.md`](../scope/care/messaging-scope.md).
 - [ ] Milestone 03 closed (edges + staff assignments = the membership sources); 05 closed
       (guardians exist as members). 08 not strictly required — but the guardian Messages
       tab ships here, so UI-wise this naturally follows 08.
-- [ ] **Resolve the post-restriction question first:** do lb channels support read-only
-      membership? If not, that is a *small additive lb ask* — file it, ship it via
-      WORKFLOW-LB (patch → tag → bump) **before** building announcements. It gates this
-      milestone; check it on day one.
+- [x] **Post-restriction question RESOLVED (2026-07-13) — NO lb ask needed.** lb channels
+      already split the caps: **post** requires `bus:chan/{cid}:pub`, **read/history/
+      subscribe** require `bus:chan/{cid}:sub` (distinct actions on distinct resources —
+      lb `channels-scope.md` §"Security invariants" + §Verb table). So read-only membership
+      = grant `sub` **without** `pub`. It is fully expressible with the existing scoped-grant
+      grammar care already uses (`grants.assign` over the `SidecarClient`, the same path that
+      mints `store:media/{id}:read`). No additive lb ask; no core work; this is a care-only
+      milestone. **Wildcard-hold note:** lb's no-widening rule (`grants_assign`) requires the
+      granter to HOLD a cap matching what it grants, so the care install must add
+      `bus:chan/care-**:pub` + `bus:chan/care-**:sub` to `care_mount::approved_grant` +
+      `extension.toml` + `live_node_support` (lock-step — exactly the `store:media/**:read`
+      idiom in `media/serve_grant.rs`). That is a care-side declaration, not lb work.
 
 ## Work items
 
