@@ -295,8 +295,10 @@ see `Makefile` §LB_TAG + §trusted-pubkey).
   (deferred this session; records/verbs it lands into are all shipped).
   Accepts children+guardians+edges, per-item results, hard-fail on medical
   fields, idempotent on natural keys; 40-row fixture, 2 bad rows → 38 land.
-- **Milestones 06 + 07 CLOSED (2026-07-13)** — attendance + menus (see the
-  banner above). **08 + 09 + 10** remain: m08 (daily-feed) is NEXT UP (below).
+- **Milestones 06 + 07 + 08 CLOSED (2026-07-13)** — attendance + menus + the
+  daily feed (see the m08 close above). **09 + 10** remain: m09 (messaging) is
+  NEXT UP (below). Two m08 deferrals (lb `bus.watch` scoping + the live-node
+  motion E2E) land in m10.
 - **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
   stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
 
@@ -321,25 +323,76 @@ releases?" check (WORKFLOW-LB.md §4). (Milestone 00 originally dropped the patc
 `node-v0.3.0`; the `*-v0.4.x` local-tag posture was reintroduced for the admin-marker +
 credential-mode work and is intentional until those tags are pushed.)
 
-## ⛔ BUILD BLOCKED (2026-07-13) — cannot build from published tags
+## ✅ BUILD BLOCK RESOLVED (2026-07-13) — builds clean from published tags
 
-A fresh session cannot `cargo build`/`test`: the declared pins say `node-v0.4.2`
-but the remotes hold ONLY `node-v0.4.0` (`NubeDev/lb`) + `sdk-v0.4.0`
-(`NubeDev/lb-ext-sdk`). The `*-v0.4.1`/`v0.4.2` tags (admin-marker +
-credential-mode) were **never pushed** — they lived only as local sibling tags +
-a git-ignored `[patch]`, neither of which survives into this environment. AND
-cc-app's shipped `principal_from_caller` reads `caller.admin`, a field that does
-NOT exist on `sdk-v0.4.0`'s `Caller` (it is the unpushed `sdk-v0.4.1` addition) —
-so even repointing pins to `node-v0.4.0` won't compile. Deriving admin from
-`caller.role` instead is a rule-7 regression (role is cosmetic `member` for
-everyone). **Genuine fix is lb/SDK-owned: push `sdk-v0.4.1` + `node-v0.4.1/0.4.2`,
-then drop the recreated `[patch]`.** Full analysis + the `[patch]` recreation
-recipe + sibling prerequisites: [`debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md`](debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md).
+The `*-v0.4.1`/`v0.4.2` tags **are now pushed** to the remotes (`git ls-remote`
+confirms `node-v0.4.0/0.4.1/0.4.2` on `NubeDev/lb` and `sdk-v0.4.0/0.4.1` on
+`NubeDev/lb-ext-sdk`). The real remaining blocker was the **missed SDK pin**:
+`rust/Cargo.toml` still declared `lb-ext-native = sdk-v0.4.0`, which lacks the
+`Caller.admin` field that shipped `principal_from_caller` reads (`lib.rs:200`).
+**Fixed by the one-line pin bump `sdk-v0.4.0 → sdk-v0.4.1`** (care ext inherits
+via `workspace = true`). `cargo build --workspace` + `cargo test -p care` are
+GREEN from tags with **NO `.cargo/config.toml` and NO `[patch]`** — a clean
+"am I on releases?" pass (WORKFLOW-LB.md §4). (This box has a system C compiler,
+so the zigcc wiring the earlier local-dev posture described is not needed here.)
+Full history: [`debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md`](debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md).
 
-## Milestone 08 (daily-feed) — STARTED (foundation only, un-compiled)
+## Milestone 08 (daily-feed) — CLOSED (2026-07-13)
 
-The orchestrator-owned foundation is written (fence-clean: authz + hardcoded +
-file-size gates green; NOT yet compiled — see the build block above):
+The family-facing feed ships. All five verbs, the media photo path, the
+attendance→feed emit (the m06 deferral), push policy, the guardian Feed + staff
+two-tap UI, and the cross-family matrix sweep are **built, compiled, and
+fence-clean**. **Green:** `cargo test -p care` (206 lib + all matrix suites incl.
+`matrix_daily_feed`), all 4 fences (authz / hardcoded / file-size / i18n-parity),
+`cargo build --workspace`; care-ext UI `pnpm build` + `tsc --noEmit` + i18n parity.
+
+- **Verbs** (`log/`, `feed/`): `care.log.add` (staff, multi-child atomic fan-out
+  to per-child rows, photo-consent-at-write via `child.photo_consent`, best-effort
+  bus emit + push), `log.list` (role-filtered, compound `(at,row_id)` cursor),
+  `log.correct` (compensating, never an edit), `log.day` (single-child reach-gated
+  rollup, correction-dedup), `feed.watch` (reach-check-at-subscribe → gateway SSE
+  descriptor). The media/consent guards were split out of `log/add.rs` into
+  `log/add_media.rs` to hold the ≤400-line limit.
+- **Media** (`media/`): `care.media.begin` (video/pdf reject — photos-only v1) /
+  `media.commit` wrap lb's `media.upload_begin/commit`; the media-URL-leak defense
+  grants `store:media/{id}:read` ONLY to the child's feed-recipients (a leaked URL
+  403s for everyone else — asserted in `matrix_daily_feed`).
+- **Push** (`push/mod.rs`, `feed/emit.rs`): incident/medication = must-deliver
+  always; else feed-then-prefs. Title/body ship as catalog KEYS localized
+  server-side per recipient — the incident-both-languages exit gate is proven
+  (`matrix_daily_feed::incident_push_targets_both_languages_with_resolvable_keys`:
+  en + es titles/bodies differ, child interpolated in both).
+- **Attendance→feed emit** (m06 deferral): `check_in`/`check_out` publish onto
+  `feed_subject(child)`.
+- **UI** (`care/ui`): guardian `FeedPage` + staff two-tap `LogEntryPage` +
+  `EntryRow`/`DaySummary`/`LogPayloadSheet`, wired into the Today tab (staff →
+  two-tap, guardian/admin → live feed). en+es catalogs at parity.
+
+**Two lb GAPS documented, NOT worked around** (WORKFLOW-LB.md — lb work first):
+`docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md`. lb's
+`bus.watch` is workspace-wide (no per-child subject scoping) and there is no
+mid-stream stream termination on grant-revoke, so `feed.watch` v1 does
+reach-check-**at-subscribe** only; the "unlink mid-stream terminates the open SSE
+stream" exit-gate item and full per-subject emit-filtering are deferred to the lb
+fix. The DURABLE reads (`list`/`day`/media-serve) ARE fully reach-checked — the
+data-isolation invariant (rule 7) holds on every durable surface.
+
+**Deferred to a live-node E2E pass** (needs the seeded node + PWA harness, not a
+lib test): the end-to-end "staff two-tap with photo → guardian's open PWA appends
+live → locked phone gets the push record" flow and the once-through es-locale feed
+UI E2E. The matrix sweep proves the authz + localization invariants; the motion
+E2E is the remaining hardening-milestone check.
+
+### Original foundation note (superseded by the close above)
+
+The orchestrator-owned foundation is written, **COMPILED, and fence-clean**
+(authz + hardcoded + file-size gates green; `cargo test -p care` = 174 lib +
+all matrix suites green from published tags). The foundation was split to
+satisfy the ≤400-line FILE-LAYOUT limit (`records.rs` was 504): now
+`log/records.rs` (the core `DailyLog` record + `LogKind` + `feed_subject` +
+`PushPolicy`, 278L), `log/payload.rs` (the 4 type-specific payload structs,
+71L), `log/validate.rs` (`LogError` + `LogKind::validate` + `validate_timestamp`
++ their tests, 207L):
 - `log/records.rs` — the `daily_log` schema (8 types, type-specific payloads:
   nap start/end, meal slot+portion, incident required what/where/action + ack,
   medication dose+witness), `LogKind::validate` (regulated-field enforcement),
@@ -363,18 +416,16 @@ The wire seams are confirmed present in lb: `bus.publish`, `notify.send`,
 
 ## Next up
 
-**Milestone 08 — daily-feed** (care ext + `ui/`): the family-facing feed a
-guardian sees (photo + note + allergy check + which guardians receive it — the
-per-edge `receives_daily_feed` flag). It DEPENDS on m06 + m07 (both now closed):
-the feed composes from `menu.*` × `child.allergies` (m07 derivation) and
-consumes the attendance bus event (m06's deferred emit lands HERE — agree the
-subject shape and wire the ledger append to it). The chokepoint's
-`reachable_children` anchors the guardian read; SSE + push are the motion half.
-Then m09 (messaging), m10 (hardening / PWA install path). All chained off the
-chokepoint.
+**Milestone 09 — messaging** (care ext + `ui/`): the guardian↔staff channel,
+chained off the same chokepoint (`docs/build/09-*`). Then **m10 — hardening /
+PWA install path**, which is where the two m08 deferrals land:
 
-**One deferral carried out of m06:** the attendance→feed bus event emit (no feed
-consumer existed at m06). Do it first thing in m08.
+1. The lb `bus.watch` per-subject scoping + mid-stream revoke fix
+   (`docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md`) —
+   lb work first, then `feed.watch` upgrades from reach-check-at-subscribe to
+   full stream isolation + unlink-terminates.
+2. The live-node E2E: staff two-tap (with photo) → guardian PWA appends live →
+   locked phone push record; the once-through es-locale feed UI run.
 
 ## Non-goals (unchanged)
 

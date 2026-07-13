@@ -44,8 +44,9 @@ lb-node = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
 # (from sdk-v0.4.0) the re-exported native host-callback client
 # (`SidecarClient` / `Config` / `CallError`) — one dependency for both
 # directions of the wire. A separate SDK repo (NubeDev/lb-ext-sdk); we pin
-# the released `sdk-v0.4.0` tag. NOT patched — this is a published SDK.
-lb-ext-native = { git = "https://github.com/NubeDev/lb-ext-sdk", tag = "sdk-v0.4.0" }
+# the released `sdk-v0.4.1` tag (adds `Caller.admin`, the host-derived admin
+# marker `principal_from_caller` reads). NOT patched — this is a published SDK.
+lb-ext-native = { git = "https://github.com/NubeDev/lb-ext-sdk", tag = "sdk-v0.4.1" }
 
 # lb-host + lb-supervisor — the native install/supervise seam cc-node's boot
 # uses to spawn + register the care sidecar at start (`install_native` +

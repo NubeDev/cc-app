@@ -60,7 +60,8 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             until: None,
         }
     } else {
-        serde_json::from_str(input).map_err(|e| format!("invalid care.attendance.list input: {e}"))?
+        serde_json::from_str(input)
+            .map_err(|e| format!("invalid care.attendance.list input: {e}"))?
     };
 
     // Resolve the caller's reach ONCE. Admin ⇒ `["*"]` on both; guardian gets a
@@ -99,7 +100,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 /// Is `event` authorized for a NON-admin caller? Staff reach is by room; a
 /// guardian's reach is by child. A staff-presence event (no `child_id`) can
 /// only match the room test — a guardian (empty room scope) never sees it.
-fn is_authorized(event: &AttendanceEvent, reach_rooms: &[String], reach_children: &[String]) -> bool {
+fn is_authorized(
+    event: &AttendanceEvent,
+    reach_rooms: &[String],
+    reach_children: &[String],
+) -> bool {
     let room_ok = reach_rooms.iter().any(|r| r == &event.room_id);
     let child_ok = match &event.child_id {
         Some(cid) => reach_children.iter().any(|c| c == cid),
@@ -236,9 +241,33 @@ mod tests {
             guardianship_link::run(&cp, &a, input).await.expect("link");
         }
 
-        seed_event(&store, "acme", "ev:leo:1", "child:leo", "room:possums", "2026-07-13T08:02:00Z").await;
-        seed_event(&store, "acme", "ev:leo:2", "child:leo", "room:possums", "2026-07-13T15:30:00Z").await;
-        seed_event(&store, "acme", "ev:mia:1", "child:mia", "room:wombats", "2026-07-13T08:10:00Z").await;
+        seed_event(
+            &store,
+            "acme",
+            "ev:leo:1",
+            "child:leo",
+            "room:possums",
+            "2026-07-13T08:02:00Z",
+        )
+        .await;
+        seed_event(
+            &store,
+            "acme",
+            "ev:leo:2",
+            "child:leo",
+            "room:possums",
+            "2026-07-13T15:30:00Z",
+        )
+        .await;
+        seed_event(
+            &store,
+            "acme",
+            "ev:mia:1",
+            "child:mia",
+            "room:wombats",
+            "2026-07-13T08:10:00Z",
+        )
+        .await;
 
         (store, key)
     }
@@ -271,7 +300,10 @@ mod tests {
         assert_eq!(v.len(), 2, "Ana sees Leo's two events only");
         for row in &v {
             assert_eq!(row["child_id"], "child:leo");
-            assert_ne!(row["child_id"], "child:mia", "MUST NOT leak Mia across families");
+            assert_ne!(
+                row["child_id"], "child:mia",
+                "MUST NOT leak Mia across families"
+            );
         }
     }
 

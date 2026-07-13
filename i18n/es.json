@@ -82,6 +82,49 @@
       "custody_hold": "Hay una nota de custodia para {{name}}: léela antes de entregar."
     }
   },
+  "log": {
+    "added": "{{type}} registrado para {{count}} niño(s).",
+    "corrected": "Corrección registrada para la entrada de {{type}}.",
+    "acknowledged": "Incidente confirmado.",
+    "type": {
+      "meal": "Comida",
+      "nap": "Siesta",
+      "diaper": "Pañal",
+      "activity": "Actividad",
+      "photo": "Foto",
+      "note": "Nota",
+      "incident": "Incidente",
+      "medication": "Medicación"
+    },
+    "portion": {
+      "all": "comió todo",
+      "most": "comió casi todo",
+      "some": "comió un poco",
+      "none": "no comió nada"
+    }
+  },
+  "push": {
+    "title": {
+      "meal": "Novedad de la comida",
+      "nap": "Novedad de la siesta",
+      "diaper": "Cambio de pañal",
+      "activity": "Novedad de actividad",
+      "photo": "Nueva foto",
+      "note": "Nueva nota",
+      "incident": "Informe de incidente de {{child}}",
+      "medication": "Medicación administrada a {{child}}"
+    },
+    "body": {
+      "meal": "Se registró una nueva comida para {{child}}.",
+      "nap": "Se registró una siesta para {{child}}.",
+      "diaper": "Se registró un cambio de pañal para {{child}}.",
+      "activity": "Se registró una nueva actividad para {{child}}.",
+      "photo": "Se compartió una nueva foto de {{child}}.",
+      "note": "Se añadió una nueva nota para {{child}}.",
+      "incident": "Se registró un incidente relacionado con {{child}}. Toca para leer y confirmar.",
+      "medication": "Se administró medicación a {{child}}. Toca para ver los detalles."
+    }
+  },
   "common": {
     "yes": "Sí",
     "no": "No",

@@ -61,6 +61,23 @@ const COVERED_VERBS: &[&str] = &[
     "menu.get",
     "menu.week",
     "menu.copy_week",
+    // Milestone 08 — daily feed. The cross-family deny sweep (guardian sees only
+    // reached children's entries on list/day; a stranger's feed.watch is denied;
+    // the media-URL leak 403s) is in `tests/matrix_daily_feed.rs`; per-verb
+    // in-file tests (rule-7 list/day scope, photo-consent-at-write, cursor
+    // stability, compensating correction) live in each verb's `src` module.
+    "log.add",
+    "log.list",
+    "log.correct",
+    "log.day",
+    "feed.watch",
+    // Media path (photos only). The media-URL-leak deny (a stranger never sees
+    // another family's `media_id` on list/day; the byte grant only reaches the
+    // child's feed-recipients) is asserted in `tests/matrix_daily_feed.rs`;
+    // per-verb in-file tests cover the video/pdf reject at `begin` and the
+    // malformed-input reject at `commit`.
+    "media.begin",
+    "media.commit",
 ];
 
 #[test]

@@ -29,7 +29,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
             .await
             .map_err(|e| format!("store denied the child list: {e}"))?;
         rows.into_iter()
-            .filter_map(|(id, v)| serde_json::from_value::<Child>(v.clone()).ok().map(|_| with_id(&id, v)))
+            .filter_map(|(id, v)| {
+                serde_json::from_value::<Child>(v.clone())
+                    .ok()
+                    .map(|_| with_id(&id, v))
+            })
             .collect()
     } else {
         // Non-admin (rule 7): fetch ONLY the reached ids — one indexed read
@@ -61,7 +65,10 @@ fn with_id(id: &str, mut data: serde_json::Value) -> serde_json::Value {
 /// Read one child record by its reach/record id, returning BOTH the typed
 /// child (for the archived check) and the raw value (to merge the id into).
 /// `None` if absent (a reached id whose record was archived-out or never made).
-async fn read_child(cp: &Chokepoint, id: &str) -> Result<Option<(Child, serde_json::Value)>, String> {
+async fn read_child(
+    cp: &Chokepoint,
+    id: &str,
+) -> Result<Option<(Child, serde_json::Value)>, String> {
     let value = cp
         .records()
         .read("child", id)

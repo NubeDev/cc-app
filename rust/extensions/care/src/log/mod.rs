@@ -19,13 +19,16 @@
 //! staff write verbs are cap-gated at the host wall (guardians hold no
 //! `log.add` cap — deny-tested).
 
-// Verb files land next session (add / correct / day / list) — see
-// docs/build/08-daily-feed.md work items. The orchestrator-owned schema below
-// is complete and is what those verbs build against.
+pub mod add;
+mod add_media;
+pub mod correct;
+pub mod day;
+pub mod list;
 
+mod payload;
 mod records;
+mod validate;
 
-pub use records::{
-    feed_subject, validate_timestamp, DailyLog, IncidentPayload, LogError, LogKind, MealPayload,
-    MedicationPayload, NapPayload, PushPolicy,
-};
+pub use payload::{IncidentPayload, MealPayload, MedicationPayload, NapPayload};
+pub use records::{entry_id, feed_subject, DailyLog, LogKind, PushPolicy};
+pub use validate::{validate_timestamp, LogError};

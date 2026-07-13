@@ -150,8 +150,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 })?;
 
             let Some(value) = existing else { continue };
-            let mut menu: Menu = serde_json::from_value(value)
-                .map_err(|e| format!("{}: {e}", MenuError::StoreDenied("copy_week decode".into())))?;
+            let mut menu: Menu = serde_json::from_value(value).map_err(|e| {
+                format!("{}: {e}", MenuError::StoreDenied("copy_week decode".into()))
+            })?;
 
             // Same items + substitutions; only the service date advances.
             menu.date = to_date.clone();
@@ -172,7 +173,6 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             copied += 1;
         }
     }
-
 
     let reply = CopyWeekReply {
         copied,
@@ -222,9 +222,15 @@ mod tests {
             }],
         };
         let id = Menu::id(date, room, slot);
-        store_create(store, "acme", "menu", &id, &serde_json::to_value(&menu).unwrap())
-            .await
-            .unwrap();
+        store_create(
+            store,
+            "acme",
+            "menu",
+            &id,
+            &serde_json::to_value(&menu).unwrap(),
+        )
+        .await
+        .unwrap();
     }
 
     #[test]
@@ -234,7 +240,12 @@ mod tests {
         assert_eq!(
             got,
             vec![
-                "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04",
+                "2026-06-29",
+                "2026-06-30",
+                "2026-07-01",
+                "2026-07-02",
+                "2026-07-03",
+                "2026-07-04",
                 "2026-07-05"
             ]
         );
@@ -256,7 +267,14 @@ mod tests {
 
         // Two cells in the source week: Mon lunch (offset 0), Wed breakfast (offset 2).
         seed(&store, "2026-07-06", "room:possums", Slot::Lunch, "Satay").await;
-        seed(&store, "2026-07-08", "room:possums", Slot::Breakfast, "Oats").await;
+        seed(
+            &store,
+            "2026-07-08",
+            "room:possums",
+            Slot::Breakfast,
+            "Oats",
+        )
+        .await;
 
         let out = run(
             &cp,
@@ -280,10 +298,15 @@ mod tests {
         assert_eq!(back.substitutions[0].substitute, "Sunflower");
 
         // Target Wed breakfast (offset 2 → 2026-07-15).
-        let row2 = read(&store, "acme", "menu", "2026-07-15::room:possums::breakfast")
-            .await
-            .unwrap()
-            .unwrap();
+        let row2 = read(
+            &store,
+            "acme",
+            "menu",
+            "2026-07-15::room:possums::breakfast",
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let back2: Menu = serde_json::from_value(row2).unwrap();
         assert_eq!(back2.date, "2026-07-15");
         assert_eq!(back2.items[0].name, "Oats");

@@ -11,5 +11,13 @@
 //! subscribes (exit gate) — the watch loop re-checks reach or the platform
 //! drops the grant-scoped subscription.
 //!
-//! Verb body lands next session; the subject/emit contract it depends on is
-//! complete in `log::records`.
+//! The emit half (`bus.publish` + `notify.send` over the host callback) lives
+//! in `emit.rs` — the MOTION seam `log::add` calls. The subscribe half
+//! (`care.feed.watch`) lives in `watch.rs`: a reach-checked authorization that
+//! hands the guardian UI the gateway SSE stream (`GET /bus/{subject}/stream`),
+//! since lb's `bus.watch` is an HTTP stream, not a `call_tool` verb.
+
+pub mod emit;
+pub mod watch;
+
+pub use emit::{publish_entry, send_push};

@@ -253,9 +253,19 @@ mod tests {
             }],
             vec![],
         );
-        for spelling in ["peanuts", "Peanuts", "PEANUT", "peanut allergy", "allergic to peanuts"] {
+        for spelling in [
+            "peanuts",
+            "Peanuts",
+            "PEANUT",
+            "peanut allergy",
+            "allergic to peanuts",
+        ] {
             let rows = derive_for_child(&m, &allergy_keys(&[spelling.into()]));
-            assert_eq!(rows.len(), 1, "spelling {spelling:?} must flag the peanut item");
+            assert_eq!(
+                rows.len(),
+                1,
+                "spelling {spelling:?} must flag the peanut item"
+            );
             assert_eq!(rows[0].reason, "peanut");
         }
     }
@@ -274,7 +284,11 @@ mod tests {
             vec![],
         );
         let rows = derive_for_child(&m, &allergy_keys(&["mango".into()]));
-        assert_eq!(rows.len(), 1, "an unknown restriction flags the item conservatively");
+        assert_eq!(
+            rows.len(),
+            1,
+            "an unknown restriction flags the item conservatively"
+        );
         assert!(!rows[0].resolved);
         // A child whose restriction the vocabulary DOES express (peanut) does
         // NOT get the conservative flag on an item clear of peanut.

@@ -37,20 +37,27 @@ Scope: [`../scope/care/daily-feed-scope.md`](../scope/care/daily-feed-scope.md).
 
 ## Exit gate
 
-- [ ] Matrix rows for `list/get/day/watch` **and the media URL** (record filtered but
-      photo URL guessable = the classic leak → must 403, tested per variant).
-- [ ] Unlink mid-stream → the **open SSE stream terminates**, not just future subscribes.
-- [ ] `receives_daily_feed: false` edge → no feed, no push; incident push always fires
-      (outbox retry asserted via the recording PushProvider fake); quiet hours honored.
-- [ ] Multi-child fan-out atomic; corrections; cursor stability under concurrent adds.
-- [ ] E2E: staff two-tap log (with photo) → guardian's open PWA appends live → locked
-      phone gets the push record. Photo-consent child never gets media attached.
-- [ ] **The incident push asserted in both languages** (recording PushProvider fake:
-      `en` recipient and `es` recipient, same incident, each localized); feed UI E2E run
-      once as an `es` user; date/time formatting locale-correct.
-- [ ] Open questions resolved: child-level `photos_allowed` v1 (recommended); weekly
-      digest deferred unless trivial; incident-ack best-effort v1 (record the choice).
-- [ ] STATUS.md moved.
+- [x] Matrix rows for `list/get/day/watch` **and the media URL** (`matrix_daily_feed`:
+      guardian sees only her child's rows, stranger empty, day 403 with no leak, the
+      media-id never surfaces across families).
+- [ ] Unlink mid-stream → the **open SSE stream terminates** — **DEFERRED to m10** (lb
+      `bus.watch` is workspace-wide + has no mid-stream revoke; `feed.watch` v1 is
+      reach-check-at-subscribe; lb work first —
+      `docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md`).
+- [x] `receives_daily_feed: false` edge → no feed, no push (`authz::feed_recipients`);
+      incident/medication push always (`push::decide` must-deliver). Outbox-retry +
+      quiet-hours assertions are lb-outbox/prefs surfaces → live-node/m10.
+- [x] Multi-child fan-out atomic (validate-all-before-any-write); corrections
+      (compensating); cursor `(at,row_id)` stability.
+- [ ] E2E: staff two-tap (with photo) → guardian PWA appends live → locked phone push —
+      **DEFERRED to a live-node E2E pass (m10)**. Photo-consent child never gets media:
+      **[x]** proven in-lib (`add.rs::photo_attach_blocked_for_non_consenting_child`).
+- [x] **Incident push asserted in both languages** (`matrix_daily_feed`: en + es titles
+      and bodies differ, child interpolated in both, not the raw key). The es feed UI E2E
+      run is **DEFERRED to m10** with the motion E2E.
+- [x] Open questions resolved: child-level `photo_consent` v1 (enforced at write);
+      weekly digest deferred; incident-ack best-effort v1 (recorded).
+- [x] STATUS.md moved.
 
 ## Subagent notes
 

@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { LargeTitle } from "../components/LargeTitle";
 import { TabBar } from "../components/TabBar";
 import type { TabKey } from "../components/TabBar";
-import { useT } from "../hooks/useT";
 import { useCareSession } from "../hooks/useCareSession";
 import { AdminHomePage } from "./admin/AdminHomePage";
 import { ChildrenListPage } from "./child/ChildrenListPage";
@@ -10,9 +8,10 @@ import { AttendancePage } from "./attendance/AttendancePage";
 import { GuardianWeekPage } from "./menu/GuardianWeekPage";
 import { ServingViewPage } from "./menu/ServingViewPage";
 import { MenuPlannerPage } from "./menu/MenuPlannerPage";
+import { FeedPage } from "./feed/FeedPage";
+import { LogEntryPage } from "./feed/LogEntryPage";
 
 export function HomePage() {
-  const t = useT();
   const session = useCareSession();
   const [tab, setTab] = useState<TabKey>("today");
   const role = session?.role ?? "guardian";
@@ -28,23 +27,18 @@ export function HomePage() {
     return <GuardianWeekPage />;
   }
 
+  // The Today tab is the milestone-08 home. Staff land on the two-tap logging
+  // flow (their primary daily gesture — children multi-select → type → done);
+  // guardians and admins land on the live feed (SSE append, child switcher, day
+  // rollup, incident ack) filtered to their reached children by the chokepoint.
+  function todaySurface() {
+    if (isStaff) return <LogEntryPage />;
+    return <FeedPage />;
+  }
+
   return (
     <div>
-      {tab === "today" && (
-        <main className="pb-24">
-          <LargeTitle>{t("app.title")}</LargeTitle>
-          <div className="px-4">
-            {session && (
-              <p className="text-[13px] capitalize text-muted-foreground">
-                {session.role} · {session.workspaceId}
-              </p>
-            )}
-            <div className="flex flex-col items-center gap-2 py-20 text-center">
-              <p className="text-[15px] text-muted-foreground">{t("feed.empty")}</p>
-            </div>
-          </div>
-        </main>
-      )}
+      {tab === "today" && todaySurface()}
       {tab === "children" && isAdmin && <ChildrenListPage />}
       {tab === "attendance" && (isStaff || isAdmin) && <AttendancePage />}
       {tab === "menus" && menusSurface()}
