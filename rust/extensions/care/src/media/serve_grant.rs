@@ -71,10 +71,7 @@ pub async fn grant_media_read(
     let cap = media_read_cap(media_id);
     for subject in recipients {
         client
-            .call_tool(
-                "grants.assign",
-                json!({ "subject": subject, "cap": cap }),
-            )
+            .call_tool("grants.assign", json!({ "subject": subject, "cap": cap }))
             .await?;
     }
     Ok(())
@@ -93,10 +90,7 @@ pub async fn revoke_media_read(
     let cap = media_read_cap(media_id);
     for subject in recipients {
         client
-            .call_tool(
-                "grants.revoke",
-                json!({ "subject": subject, "cap": cap }),
-            )
+            .call_tool("grants.revoke", json!({ "subject": subject, "cap": cap }))
             .await?;
     }
     Ok(())

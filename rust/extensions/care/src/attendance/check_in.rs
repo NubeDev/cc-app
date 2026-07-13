@@ -27,7 +27,7 @@
 
 use lb_auth::Principal;
 
-use crate::attendance::{validate_timestamp, AttendanceEvent, AttendanceError, EventKind};
+use crate::attendance::{validate_timestamp, AttendanceError, AttendanceEvent, EventKind};
 use crate::authz::{Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::feed::publish_entry;
@@ -63,7 +63,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 
     // Validate the event id (first-write key) before anything touches the store.
     if parsed.event_id.is_empty() || parsed.event_id.len() > 64 {
-        return Err(format!("{}", AttendanceError::InvalidId(parsed.event_id.clone())));
+        return Err(format!(
+            "{}",
+            AttendanceError::InvalidId(parsed.event_id.clone())
+        ));
     }
     // EXACTLY ONE of child_id / staff_sub — a child check-in XOR a staff-presence
     // event. Both or neither is a malformed tap.
@@ -71,7 +74,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     let staff_sub = parsed.staff_sub.filter(|s| !s.trim().is_empty());
     match (&child_id, &staff_sub) {
         (Some(_), Some(_)) | (None, None) => {
-            return Err(format!("{}", AttendanceError::MissingField("child_id|staff_sub")));
+            return Err(format!(
+                "{}",
+                AttendanceError::MissingField("child_id|staff_sub")
+            ));
         }
         _ => {}
     }
@@ -118,7 +124,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| match e {
             RecordError::Conflict => {
-                format!("{}", AttendanceError::AlreadyExists(parsed.event_id.clone()))
+                format!(
+                    "{}",
+                    AttendanceError::AlreadyExists(parsed.event_id.clone())
+                )
             }
             RecordError::Store(s) => {
                 format!("{}: {s}", AttendanceError::StoreDenied("check_in".into()))
@@ -189,7 +198,10 @@ mod tests {
         assert_eq!(row["child_id"], "child:leo");
         assert_eq!(row["room_id"], "room:possums");
         assert_eq!(row["performed_by"], "user:teacher");
-        assert!(row.get("staff_sub").is_none(), "staff_sub omitted for a child event");
+        assert!(
+            row.get("staff_sub").is_none(),
+            "staff_sub omitted for a child event"
+        );
     }
 
     #[tokio::test]
@@ -213,7 +225,10 @@ mod tests {
             .unwrap();
         assert_eq!(row["kind"], "check_in");
         assert_eq!(row["staff_sub"], "user:ana");
-        assert!(row.get("child_id").is_none(), "child_id omitted for a staff event");
+        assert!(
+            row.get("child_id").is_none(),
+            "child_id omitted for a staff event"
+        );
     }
 
     #[tokio::test]
@@ -243,7 +258,10 @@ mod tests {
             r#"{"event_id":"evt:3","room_id":"room:possums","at":"2026-07-14T08:02:00Z"}"#,
         )
         .await;
-        assert!(res.is_err(), "neither child_id nor staff_sub set must reject");
+        assert!(
+            res.is_err(),
+            "neither child_id nor staff_sub set must reject"
+        );
     }
 
     #[tokio::test]
@@ -255,7 +273,10 @@ mod tests {
         let input = r#"{"event_id":"evt:dup","child_id":"child:leo","room_id":"room:possums","at":"2026-07-14T08:02:00Z"}"#;
         run(&cp, &p, input).await.expect("first append");
         let res = run(&cp, &p, input).await;
-        assert!(res.is_err(), "the ledger never overwrites — a dup event_id conflicts");
+        assert!(
+            res.is_err(),
+            "the ledger never overwrites — a dup event_id conflicts"
+        );
         assert!(res.unwrap_err().contains("already exists"));
     }
 }

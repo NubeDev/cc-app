@@ -106,7 +106,13 @@ pub fn fold_now(events: &[AttendanceEvent]) -> Vec<RoomOccupancy> {
 mod tests {
     use super::*;
 
-    fn ev(kind: EventKind, child: Option<&str>, staff: Option<&str>, room: &str, at: &str) -> AttendanceEvent {
+    fn ev(
+        kind: EventKind,
+        child: Option<&str>,
+        staff: Option<&str>,
+        room: &str,
+        at: &str,
+    ) -> AttendanceEvent {
         AttendanceEvent {
             kind,
             child_id: child.map(String::from),
@@ -125,8 +131,20 @@ mod tests {
     #[test]
     fn a_check_in_without_a_later_out_is_present() {
         let events = vec![
-            ev(EventKind::CheckIn, Some("leo"), None, "possums", "2026-07-14T08:00:00Z"),
-            ev(EventKind::CheckIn, None, Some("user:t1"), "possums", "2026-07-14T07:50:00Z"),
+            ev(
+                EventKind::CheckIn,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T08:00:00Z",
+            ),
+            ev(
+                EventKind::CheckIn,
+                None,
+                Some("user:t1"),
+                "possums",
+                "2026-07-14T07:50:00Z",
+            ),
         ];
         let now = fold_now(&events);
         assert_eq!(now.len(), 1);
@@ -138,8 +156,20 @@ mod tests {
     #[test]
     fn a_later_check_out_makes_a_child_absent() {
         let events = vec![
-            ev(EventKind::CheckIn, Some("leo"), None, "possums", "2026-07-14T08:00:00Z"),
-            ev(EventKind::CheckOut, Some("leo"), None, "possums", "2026-07-14T17:00:00Z"),
+            ev(
+                EventKind::CheckIn,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T08:00:00Z",
+            ),
+            ev(
+                EventKind::CheckOut,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T17:00:00Z",
+            ),
         ];
         assert_eq!(fold_now(&events)[0].children, 0);
     }
@@ -151,13 +181,29 @@ mod tests {
         // ordering makes the child absent.
         let events = vec![
             {
-                let mut c = ev(EventKind::CheckOut, Some("leo"), None, "possums", "2026-07-14T08:01:00Z");
+                let mut c = ev(
+                    EventKind::CheckOut,
+                    Some("leo"),
+                    None,
+                    "possums",
+                    "2026-07-14T08:01:00Z",
+                );
                 c.correction_of = Some("evt-1".into());
                 c
             },
-            ev(EventKind::CheckIn, Some("leo"), None, "possums", "2026-07-14T08:00:00Z"),
+            ev(
+                EventKind::CheckIn,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T08:00:00Z",
+            ),
         ];
-        assert_eq!(fold_now(&events)[0].children, 0, "correction nets to absent");
+        assert_eq!(
+            fold_now(&events)[0].children,
+            0,
+            "correction nets to absent"
+        );
     }
 
     #[test]
@@ -169,15 +215,37 @@ mod tests {
             "possums",
             "2026-07-14T08:00:00Z",
         )];
-        assert_eq!(fold_now(&events)[0].ratio, None, "no staff → alert, not a divide-by-zero");
+        assert_eq!(
+            fold_now(&events)[0].ratio,
+            None,
+            "no staff → alert, not a divide-by-zero"
+        );
     }
 
     #[test]
     fn re_check_in_after_checkout_is_present_again() {
         let events = vec![
-            ev(EventKind::CheckIn, Some("leo"), None, "possums", "2026-07-14T08:00:00Z"),
-            ev(EventKind::CheckOut, Some("leo"), None, "possums", "2026-07-14T12:00:00Z"),
-            ev(EventKind::CheckIn, Some("leo"), None, "possums", "2026-07-14T13:00:00Z"),
+            ev(
+                EventKind::CheckIn,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T08:00:00Z",
+            ),
+            ev(
+                EventKind::CheckOut,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T12:00:00Z",
+            ),
+            ev(
+                EventKind::CheckIn,
+                Some("leo"),
+                None,
+                "possums",
+                "2026-07-14T13:00:00Z",
+            ),
         ];
         assert_eq!(fold_now(&events)[0].children, 1);
     }

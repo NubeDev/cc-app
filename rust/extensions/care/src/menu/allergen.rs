@@ -77,7 +77,15 @@ impl Allergen {
             .chars()
             .map(|c| if c.is_ascii_alphanumeric() { c } else { ' ' })
             .collect();
-        const NOISE: &[&str] = &["allergy", "allergic", "intolerance", "intolerant", "to", "a", "an"];
+        const NOISE: &[&str] = &[
+            "allergy",
+            "allergic",
+            "intolerance",
+            "intolerant",
+            "to",
+            "a",
+            "an",
+        ];
         let mut words: Vec<&str> = cleaned
             .split_whitespace()
             .filter(|w| !NOISE.contains(w))

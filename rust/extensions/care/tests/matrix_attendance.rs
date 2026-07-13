@@ -70,12 +70,24 @@ async fn seed() -> (Arc<Store>, lb_auth::SigningKey) {
     .expect("seed mia");
 
     // Guardian records so name-based authorization can resolve a display name.
-    store_create(&store, WS, "guardian", SAM, &serde_json::json!({"name":"Sam","sub":SAM}))
-        .await
-        .expect("seed sam");
-    store_create(&store, WS, "guardian", ANA, &serde_json::json!({"name":"Ana","sub":ANA}))
-        .await
-        .expect("seed ana");
+    store_create(
+        &store,
+        WS,
+        "guardian",
+        SAM,
+        &serde_json::json!({"name":"Sam","sub":SAM}),
+    )
+    .await
+    .expect("seed sam");
+    store_create(
+        &store,
+        WS,
+        "guardian",
+        ANA,
+        &serde_json::json!({"name":"Ana","sub":ANA}),
+    )
+    .await
+    .expect("seed ana");
 
     // Edges with can_pickup: Sam→Leo {live,can_pickup}; Ana→Leo
     // {live, NOT can_pickup}; Sam→Mia {live,can_pickup} (Sam reaches Mia too).
@@ -138,11 +150,41 @@ async fn seed_event(
 async fn guardian_cannot_check_in() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store.clone(), WS);
-    seed_event(&store, "ev:leo:1", "check_in", LEO, POSS, "2026-07-14T08:00:00Z").await;
-    seed_event(&store, "ev:leo:2", "check_out", LEO, POSS, "2026-07-14T17:00:00Z").await;
-    seed_event(&store, "ev:mia:1", "check_in", MIA, KOAL, "2026-07-14T08:05:00Z").await;
+    seed_event(
+        &store,
+        "ev:leo:1",
+        "check_in",
+        LEO,
+        POSS,
+        "2026-07-14T08:00:00Z",
+    )
+    .await;
+    seed_event(
+        &store,
+        "ev:leo:2",
+        "check_out",
+        LEO,
+        POSS,
+        "2026-07-14T17:00:00Z",
+    )
+    .await;
+    seed_event(
+        &store,
+        "ev:mia:1",
+        "check_in",
+        MIA,
+        KOAL,
+        "2026-07-14T08:05:00Z",
+    )
+    .await;
 
-    let ana = principal(&key, ANA, WS, Role::Member, &["mcp:care.attendance.list:call"]);
+    let ana = principal(
+        &key,
+        ANA,
+        WS,
+        Role::Member,
+        &["mcp:care.attendance.list:call"],
+    );
     let out = list::run(&cp, &ana, "").await.expect("ana list ok");
     let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
     assert_eq!(v.len(), 2, "Ana sees Leo's two events only, got {v:?}");
@@ -158,7 +200,11 @@ fn checkout(collector_name: &str, collector_sub: Option<&str>, override_: bool) 
     let sub = collector_sub
         .map(|s| format!(r#","collector_sub":"{s}""#))
         .unwrap_or_default();
-    let ovr = if override_ { r#","pickup_override":true"# } else { "" };
+    let ovr = if override_ {
+        r#","pickup_override":true"#
+    } else {
+        ""
+    };
     format!(
         r#"{{"event_id":"co:1","child_id":"{LEO}","room_id":"{POSS}","at":"2026-07-14T17:20:00Z","collector_name":"{collector_name}"{sub}{ovr}}}"#
     )
@@ -170,12 +216,27 @@ fn checkout(collector_name: &str, collector_sub: Option<&str>, override_: bool) 
 async fn stranger_pickup_is_hard_denied() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store, WS);
-    let admin = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.attendance.check_out:call"]);
+    let admin = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.attendance.check_out:call"],
+    );
 
-    let res = check_out::run(&cp, &admin, &checkout("Mallory", Some("user:mallory"), false)).await;
+    let res = check_out::run(
+        &cp,
+        &admin,
+        &checkout("Mallory", Some("user:mallory"), false),
+    )
+    .await;
     assert!(res.is_err(), "a stranger collector must be hard-denied");
     assert!(
-        cp.records().read("attendance_event", "co:1").await.unwrap().is_none(),
+        cp.records()
+            .read("attendance_event", "co:1")
+            .await
+            .unwrap()
+            .is_none(),
         "no check_out event may be written on a deny"
     );
 }
@@ -186,14 +247,25 @@ async fn stranger_pickup_is_hard_denied() {
 async fn authorized_pickup_by_name_allowed() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store, WS);
-    let admin = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.attendance.check_out:call"]);
+    let admin = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.attendance.check_out:call"],
+    );
 
     let out = check_out::run(&cp, &admin, &checkout("Grandma Jo", None, false))
         .await
         .expect("named authorized pickup allowed");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["event_id"], "co:1");
-    let ev = cp.records().read("attendance_event", "co:1").await.unwrap().unwrap();
+    let ev = cp
+        .records()
+        .read("attendance_event", "co:1")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(ev["kind"], "check_out");
 }
 
@@ -203,12 +275,22 @@ async fn authorized_pickup_by_name_allowed() {
 async fn non_can_pickup_guardian_denied() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store, WS);
-    let admin = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.attendance.check_out:call"]);
+    let admin = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.attendance.check_out:call"],
+    );
 
     let res = check_out::run(&cp, &admin, &checkout("Ana", Some(ANA), false)).await;
     assert!(res.is_err(), "a can_pickup:false guardian must be denied");
     assert!(
-        cp.records().read("attendance_event", "co:1").await.unwrap().is_none(),
+        cp.records()
+            .read("attendance_event", "co:1")
+            .await
+            .unwrap()
+            .is_none(),
         "no event on a denied non-can_pickup guardian"
     );
 }
@@ -219,16 +301,34 @@ async fn non_can_pickup_guardian_denied() {
 async fn admin_override_is_audited() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store, WS);
-    let admin = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.attendance.check_out:call"]);
+    let admin = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.attendance.check_out:call"],
+    );
 
     // Mallory is a stranger — denied by the gate — but the admin overrides.
-    let out = check_out::run(&cp, &admin, &checkout("Mallory", Some("user:mallory"), true))
-        .await
-        .expect("admin override allowed");
+    let out = check_out::run(
+        &cp,
+        &admin,
+        &checkout("Mallory", Some("user:mallory"), true),
+    )
+    .await
+    .expect("admin override allowed");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["event_id"], "co:1");
-    let ev = cp.records().read("attendance_event", "co:1").await.unwrap().unwrap();
-    assert_eq!(ev["pickup_override"], true, "override must be audited on the event");
+    let ev = cp
+        .records()
+        .read("attendance_event", "co:1")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        ev["pickup_override"], true,
+        "override must be audited on the event"
+    );
 }
 
 // -- 6. Derived `now` across an in→out sequence ---------------------------
@@ -239,26 +339,53 @@ async fn admin_override_is_audited() {
 async fn now_reflects_in_then_out() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store.clone(), WS);
-    let admin_now = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.attendance.now:call"]);
+    let admin_now = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.attendance.now:call"],
+    );
 
     // Check IN Leo via the real write path (staff/kiosk tap shape).
-    seed_event(&store, "in:leo", "check_in", LEO, POSS, "2026-07-14T08:00:00Z").await;
+    seed_event(
+        &store,
+        "in:leo",
+        "check_in",
+        LEO,
+        POSS,
+        "2026-07-14T08:00:00Z",
+    )
+    .await;
 
-    let out = now::run(&cp, &admin_now, r#"{"room_id":"room:possums"}"#).await.expect("now after in");
+    let out = now::run(&cp, &admin_now, r#"{"room_id":"room:possums"}"#)
+        .await
+        .expect("now after in");
     let occ: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
     assert_eq!(occ.len(), 1, "one occupied room after check-in");
     assert_eq!(occ[0]["children"], 1, "Leo present ⇒ children:1");
 
     // Check OUT Leo through the real gated verb (Grandma Jo is authorized).
-    let admin_co = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.attendance.check_out:call"]);
+    let admin_co = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.attendance.check_out:call"],
+    );
     check_out::run(&cp, &admin_co, &checkout("Grandma Jo", None, false))
         .await
         .expect("gated check-out");
 
-    let out = now::run(&cp, &admin_now, r#"{"room_id":"room:possums"}"#).await.expect("now after out");
+    let out = now::run(&cp, &admin_now, r#"{"room_id":"room:possums"}"#)
+        .await
+        .expect("now after out");
     let occ: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
     // The room may drop out of the fold entirely, or report children:0.
-    let children = occ.first().and_then(|o| o["children"].as_i64()).unwrap_or(0);
+    let children = occ
+        .first()
+        .and_then(|o| o["children"].as_i64())
+        .unwrap_or(0);
     assert_eq!(children, 0, "later check_out ⇒ Leo absent ⇒ children:0");
 }
 
@@ -270,15 +397,44 @@ async fn now_reflects_in_then_out() {
 async fn staff_scoped_list() {
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store.clone(), WS);
-    seed_event(&store, "ev:poss", "check_in", LEO, POSS, "2026-07-14T08:00:00Z").await;
-    seed_event(&store, "ev:koal", "check_in", MIA, KOAL, "2026-07-14T08:05:00Z").await;
+    seed_event(
+        &store,
+        "ev:poss",
+        "check_in",
+        LEO,
+        POSS,
+        "2026-07-14T08:00:00Z",
+    )
+    .await;
+    seed_event(
+        &store,
+        "ev:koal",
+        "check_in",
+        MIA,
+        KOAL,
+        "2026-07-14T08:05:00Z",
+    )
+    .await;
 
-    let teacher = principal(&key, TEACH, WS, Role::Member, &["mcp:care.attendance.list:call"]);
+    let teacher = principal(
+        &key,
+        TEACH,
+        WS,
+        Role::Member,
+        &["mcp:care.attendance.list:call"],
+    );
     let out = list::run(&cp, &teacher, "").await.expect("staff list ok");
     let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
-    assert_eq!(v.len(), 1, "teacher assigned to Possums sees one room's events, got {v:?}");
+    assert_eq!(
+        v.len(),
+        1,
+        "teacher assigned to Possums sees one room's events, got {v:?}"
+    );
     assert_eq!(v[0]["room_id"], POSS);
     for row in &v {
-        assert_ne!(row["room_id"], KOAL, "MUST NOT leak Koalas to a Possums-only teacher");
+        assert_ne!(
+            row["room_id"], KOAL,
+            "MUST NOT leak Koalas to a Possums-only teacher"
+        );
     }
 }

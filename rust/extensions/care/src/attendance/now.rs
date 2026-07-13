@@ -19,9 +19,9 @@
 
 use lb_auth::Principal;
 
-use crate::authz::{reachable_rooms, Chokepoint};
-use super::records::AttendanceEvent;
 use super::occupancy::fold_now;
+use super::records::AttendanceEvent;
+use crate::authz::{reachable_rooms, Chokepoint};
 
 /// Optional single-room filter. Absent ⇒ all rooms the caller reaches.
 #[derive(Debug, Default, serde::Deserialize)]
@@ -151,8 +151,26 @@ mod tests {
         let store = Arc::new(Store::memory().await.unwrap());
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
-        seed_event(&store, "e1", "check_in", Some("leo"), None, "possums", "2026-07-14T08:00:00Z").await;
-        seed_event(&store, "e2", "check_in", None, Some("user:t1"), "possums", "2026-07-14T07:50:00Z").await;
+        seed_event(
+            &store,
+            "e1",
+            "check_in",
+            Some("leo"),
+            None,
+            "possums",
+            "2026-07-14T08:00:00Z",
+        )
+        .await;
+        seed_event(
+            &store,
+            "e2",
+            "check_in",
+            None,
+            Some("user:t1"),
+            "possums",
+            "2026-07-14T07:50:00Z",
+        )
+        .await;
 
         let out = run(&cp, &admin(&key), "").await.expect("admin now");
         let occ: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
@@ -168,8 +186,26 @@ mod tests {
         let store = Arc::new(Store::memory().await.unwrap());
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
-        seed_event(&store, "e1", "check_in", Some("leo"), None, "possums", "2026-07-14T08:00:00Z").await;
-        seed_event(&store, "e2", "check_out", Some("leo"), None, "possums", "2026-07-14T17:00:00Z").await;
+        seed_event(
+            &store,
+            "e1",
+            "check_in",
+            Some("leo"),
+            None,
+            "possums",
+            "2026-07-14T08:00:00Z",
+        )
+        .await;
+        seed_event(
+            &store,
+            "e2",
+            "check_out",
+            Some("leo"),
+            None,
+            "possums",
+            "2026-07-14T17:00:00Z",
+        )
+        .await;
 
         let out = run(&cp, &admin(&key), "").await.expect("admin now");
         let occ: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
@@ -182,11 +218,31 @@ mod tests {
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
         // Two rooms with occupancy; staff assigned to only one.
-        seed_event(&store, "e1", "check_in", Some("leo"), None, "possums", "2026-07-14T08:00:00Z").await;
-        seed_event(&store, "e2", "check_in", Some("mia"), None, "wombats", "2026-07-14T08:00:00Z").await;
+        seed_event(
+            &store,
+            "e1",
+            "check_in",
+            Some("leo"),
+            None,
+            "possums",
+            "2026-07-14T08:00:00Z",
+        )
+        .await;
+        seed_event(
+            &store,
+            "e2",
+            "check_in",
+            Some("mia"),
+            None,
+            "wombats",
+            "2026-07-14T08:00:00Z",
+        )
+        .await;
         assign_staff(&store, "user:t1", "possums").await;
 
-        let out = run(&cp, &staff(&key, "user:t1"), "").await.expect("staff now");
+        let out = run(&cp, &staff(&key, "user:t1"), "")
+            .await
+            .expect("staff now");
         let occ: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
         assert_eq!(occ.len(), 1, "staff sees only their assigned room");
         assert_eq!(occ[0]["room_id"], "possums");
@@ -197,10 +253,30 @@ mod tests {
         let store = Arc::new(Store::memory().await.unwrap());
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
-        seed_event(&store, "e1", "check_in", Some("leo"), None, "possums", "2026-07-14T08:00:00Z").await;
-        seed_event(&store, "e2", "check_in", Some("mia"), None, "wombats", "2026-07-14T08:00:00Z").await;
+        seed_event(
+            &store,
+            "e1",
+            "check_in",
+            Some("leo"),
+            None,
+            "possums",
+            "2026-07-14T08:00:00Z",
+        )
+        .await;
+        seed_event(
+            &store,
+            "e2",
+            "check_in",
+            Some("mia"),
+            None,
+            "wombats",
+            "2026-07-14T08:00:00Z",
+        )
+        .await;
 
-        let out = run(&cp, &admin(&key), r#"{"room_id":"wombats"}"#).await.expect("filtered now");
+        let out = run(&cp, &admin(&key), r#"{"room_id":"wombats"}"#)
+            .await
+            .expect("filtered now");
         let occ: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
         assert_eq!(occ.len(), 1);
         assert_eq!(occ[0]["room_id"], "wombats");

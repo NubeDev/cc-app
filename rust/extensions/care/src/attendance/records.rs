@@ -182,7 +182,10 @@ pub fn validate_timestamp(s: &str) -> Result<(), AttendanceError> {
         && (b[10] == b'T' || b[10] == b' ')
         && b[13] == b':'
         && b[16] == b':'
-        && b[..10].iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit());
+        && b[..10]
+            .iter()
+            .enumerate()
+            .all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit());
     if ok {
         Ok(())
     } else {
@@ -236,7 +239,10 @@ mod tests {
         let v = serde_json::to_value(&e).unwrap();
         assert_eq!(v["kind"], "check_in");
         assert_eq!(v["child_id"], "child:leo");
-        assert!(v.get("staff_sub").is_none(), "staff_sub omitted for a child event");
+        assert!(
+            v.get("staff_sub").is_none(),
+            "staff_sub omitted for a child event"
+        );
         let back: AttendanceEvent = serde_json::from_value(v).unwrap();
         assert_eq!(back, e);
     }

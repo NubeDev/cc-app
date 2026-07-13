@@ -78,8 +78,8 @@ pub struct CorrectReply {
 }
 
 pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<String, String> {
-    let parsed: CorrectInput = serde_json::from_str(input)
-        .map_err(|e| format!("invalid care.log.correct input: {e}"))?;
+    let parsed: CorrectInput =
+        serde_json::from_str(input).map_err(|e| format!("invalid care.log.correct input: {e}"))?;
 
     // Validate the NEW entry id (first-write key) before touching the store.
     if parsed.entry_id.is_empty() || parsed.entry_id.len() > 64 {
@@ -99,7 +99,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .read("daily_log", &parsed.correction_of)
         .await
         .map_err(|e| match e {
-            RecordError::Store(s) => format!("{}: {s}", LogError::StoreDenied("log.correct".into())),
+            RecordError::Store(s) => {
+                format!("{}: {s}", LogError::StoreDenied("log.correct".into()))
+            }
             RecordError::Conflict => format!("{}", LogError::StoreDenied("log.correct".into())),
         })?
         .ok_or_else(|| format!("{}", LogError::NotFound(parsed.correction_of.clone())))?;
@@ -141,8 +143,12 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .create("daily_log", &parsed.entry_id, &value)
         .await
         .map_err(|e| match e {
-            RecordError::Conflict => format!("{}", LogError::AlreadyExists(parsed.entry_id.clone())),
-            RecordError::Store(s) => format!("{}: {s}", LogError::StoreDenied("log.correct".into())),
+            RecordError::Conflict => {
+                format!("{}", LogError::AlreadyExists(parsed.entry_id.clone()))
+            }
+            RecordError::Store(s) => {
+                format!("{}: {s}", LogError::StoreDenied("log.correct".into()))
+            }
         })?;
 
     let reply = CorrectReply {
@@ -310,7 +316,10 @@ mod tests {
             ),
         )
         .await;
-        assert!(res.is_err(), "a correction dropping a regulated field must reject");
+        assert!(
+            res.is_err(),
+            "a correction dropping a regulated field must reject"
+        );
         assert!(res.unwrap_err().contains("incident.action"));
         assert!(
             read(&store, "acme", "daily_log", "log:inc:fix")

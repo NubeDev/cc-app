@@ -294,7 +294,10 @@ mod tests {
         assert!(res.is_err(), "an incomplete incident must reject");
         let row_id = entry_id("log:inc:1", "child:leo");
         assert!(
-            read(&store, "acme", "daily_log", &row_id).await.unwrap().is_none(),
+            read(&store, "acme", "daily_log", &row_id)
+                .await
+                .unwrap()
+                .is_none(),
             "no row lands on a rejected incident"
         );
     }
@@ -317,13 +320,21 @@ mod tests {
             r#"{"entry_id":"log:photo:1","child_ids":["child:leo","child:mia"],"room_id":"room:possums","kind":"photo","at":"2026-07-14T10:00:00Z","media_ids":["media:1"]}"#,
         )
         .await;
-        assert!(res.is_err(), "a photo attach to a non-consenting child must reject");
+        assert!(
+            res.is_err(),
+            "a photo attach to a non-consenting child must reject"
+        );
         assert!(res.unwrap_err().contains("photo consent"));
         assert!(
-            read(&store, "acme", "daily_log", &entry_id("log:photo:1", "child:leo"))
-                .await
-                .unwrap()
-                .is_none(),
+            read(
+                &store,
+                "acme",
+                "daily_log",
+                &entry_id("log:photo:1", "child:leo")
+            )
+            .await
+            .unwrap()
+            .is_none(),
             "no row lands (consent checked before any write)"
         );
     }
@@ -344,10 +355,15 @@ mod tests {
         )
         .await
         .expect("consenting child accepts the photo");
-        let row = read(&store, "acme", "daily_log", &entry_id("log:photo:2", "child:leo"))
-            .await
-            .unwrap()
-            .unwrap();
+        let row = read(
+            &store,
+            "acme",
+            "daily_log",
+            &entry_id("log:photo:2", "child:leo"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(row["media_ids"][0], "media:1");
     }
 
@@ -363,7 +379,10 @@ mod tests {
         let input = r#"{"entry_id":"log:dup","child_ids":["child:leo"],"room_id":"room:possums","kind":"note","at":"2026-07-14T09:00:00Z","note":"hi"}"#;
         run(&cp, &p, input).await.expect("first add");
         let res = run(&cp, &p, input).await;
-        assert!(res.is_err(), "a re-tapped gesture conflicts (never double-logs)");
+        assert!(
+            res.is_err(),
+            "a re-tapped gesture conflicts (never double-logs)"
+        );
         assert!(res.unwrap_err().contains("already exists"));
     }
 

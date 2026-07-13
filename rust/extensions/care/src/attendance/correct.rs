@@ -28,7 +28,7 @@
 
 use lb_auth::Principal;
 
-use crate::attendance::{validate_timestamp, AttendanceEvent, AttendanceError, EventKind};
+use crate::attendance::{validate_timestamp, AttendanceError, AttendanceEvent, EventKind};
 use crate::authz::{Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::i18n::t;
@@ -61,10 +61,16 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 
     // Validate the NEW event id (first-write key) before touching the store.
     if parsed.event_id.is_empty() || parsed.event_id.len() > 64 {
-        return Err(format!("{}", AttendanceError::InvalidId(parsed.event_id.clone())));
+        return Err(format!(
+            "{}",
+            AttendanceError::InvalidId(parsed.event_id.clone())
+        ));
     }
     if parsed.correction_of.trim().is_empty() {
-        return Err(format!("{}", AttendanceError::MissingField("correction_of")));
+        return Err(format!(
+            "{}",
+            AttendanceError::MissingField("correction_of")
+        ));
     }
     // The corrected DIRECTION — reject anything outside {check_in, check_out}.
     let kind = EventKind::parse(&parsed.kind)
@@ -87,7 +93,12 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 format!("{}", AttendanceError::StoreDenied("correct".into()))
             }
         })?
-        .ok_or_else(|| format!("{}", AttendanceError::NotFound(parsed.correction_of.clone())))?;
+        .ok_or_else(|| {
+            format!(
+                "{}",
+                AttendanceError::NotFound(parsed.correction_of.clone())
+            )
+        })?;
     let original: AttendanceEvent = serde_json::from_value(original)
         .map_err(|e| format!("deserialize corrected event: {e}"))?;
 
@@ -128,7 +139,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| match e {
             RecordError::Conflict => {
-                format!("{}", AttendanceError::AlreadyExists(parsed.event_id.clone()))
+                format!(
+                    "{}",
+                    AttendanceError::AlreadyExists(parsed.event_id.clone())
+                )
             }
             RecordError::Store(s) => {
                 format!("{}: {s}", AttendanceError::StoreDenied("correct".into()))
@@ -204,7 +218,10 @@ mod tests {
         assert_eq!(orig["kind"], "check_in", "original direction untouched");
         assert_eq!(orig["child_id"], "child:leo");
         assert_eq!(orig["room_id"], "room:possums");
-        assert!(orig.get("correction_of").is_none(), "original is not a correction");
+        assert!(
+            orig.get("correction_of").is_none(),
+            "original is not a correction"
+        );
 
         // The NEW event carries correction_of + copied subject/room.
         let corr = read(&store, "acme", "attendance_event", "evt:2")

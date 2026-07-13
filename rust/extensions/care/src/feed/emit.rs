@@ -49,7 +49,10 @@ pub async fn publish_entry(
     // Fire-and-forget: the record is the source of truth; a bus fault must not
     // fail the write. A future milestone routes the failure to the audit reactor.
     let _ = client
-        .call_tool("bus.publish", json!({ "subject": subject, "payload": entry }))
+        .call_tool(
+            "bus.publish",
+            json!({ "subject": subject, "payload": entry }),
+        )
         .await;
 }
 
@@ -76,7 +79,11 @@ pub async fn send_push(
     // must_deliver (incident/medication) → high priority; lb has no dedicated
     // must-deliver flag, and quiet hours are honored by lb per recipient prefs
     // (not suppressed here). collapse_key groups repeat pushes for one entry.
-    let priority = if decision.must_deliver { "high" } else { "normal" };
+    let priority = if decision.must_deliver {
+        "high"
+    } else {
+        "normal"
+    };
     let out = client
         .call_tool(
             "notify.send",

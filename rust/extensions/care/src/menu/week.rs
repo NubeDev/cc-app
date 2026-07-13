@@ -231,10 +231,19 @@ mod tests {
         principal(signing, sub, Role::Member)
     }
     fn principal(signing: &SigningKey, sub: &str, role: Role) -> Principal {
-        let caps = vec!["mcp:care.child.create:call".into(), "mcp:care.menu.week:call".into()];
+        let caps = vec![
+            "mcp:care.child.create:call".into(),
+            "mcp:care.menu.week:call".into(),
+        ];
         let claims = Claims {
-            sub: sub.into(), ws: WS.into(), role, caps,
-            iat: 0, exp: u64::MAX, constraint: None, run_id: None,
+            sub: sub.into(),
+            ws: WS.into(),
+            role,
+            caps,
+            iat: 0,
+            exp: u64::MAX,
+            constraint: None,
+            run_id: None,
         };
         verify(signing, &mint(signing, &claims), 1).expect("verify")
     }
@@ -244,7 +253,9 @@ mod tests {
     async fn seed_edge(store: &Arc<Store>, guardian_sub: &str, child_id: &str) {
         let id = [guardian_sub, child_id].join("::");
         let row = json!({ "guardian_sub": guardian_sub, "child_id": child_id, "relationship": "mother", "live": true });
-        store_create(store, WS, "guardianship", &id, &row).await.unwrap();
+        store_create(store, WS, "guardianship", &id, &row)
+            .await
+            .unwrap();
     }
 
     /// Seed one menu cell for the possums room on Monday lunch.
@@ -260,9 +271,15 @@ mod tests {
             substitutions: subs,
         };
         let id = Menu::id(MON, ROOM, Slot::Lunch);
-        store_create(store, WS, "menu", &id, &serde_json::to_value(&menu).unwrap())
-            .await
-            .unwrap();
+        store_create(
+            store,
+            WS,
+            "menu",
+            &id,
+            &serde_json::to_value(&menu).unwrap(),
+        )
+        .await
+        .unwrap();
     }
 
     fn week_input(child_id: &str) -> String {
@@ -291,13 +308,9 @@ mod tests {
         )
         .await
         .unwrap();
-        child_create::run(
-            &cp,
-            &a,
-            r#"{"id":"mia","name":"Mia","dob":"2020-06-01"}"#,
-        )
-        .await
-        .unwrap();
+        child_create::run(&cp, &a, r#"{"id":"mia","name":"Mia","dob":"2020-06-01"}"#)
+            .await
+            .unwrap();
 
         // Edges: Sam reaches Leo + Mia; Ana reaches only Leo.
         seed_edge(&store, "user:sam", "leo").await;
@@ -373,7 +386,9 @@ mod tests {
         // Mia has no room_id → Sam (who reaches her) gets an empty week, not err.
         let (_store, key, cp) = fixture().await;
         let sam = guardian(&key, "user:sam");
-        let out = run(&cp, &sam, &week_input("mia")).await.expect("empty week");
+        let out = run(&cp, &sam, &week_input("mia"))
+            .await
+            .expect("empty week");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["room_id"], serde_json::Value::Null);
         assert_eq!(v["days"].as_array().unwrap().len(), 0);
