@@ -50,6 +50,7 @@ pub mod caps;
 pub mod deny;
 pub mod grant;
 pub mod host_callback;
+pub mod pickup;
 pub mod principal;
 mod records;
 mod scope;
@@ -59,6 +60,7 @@ use lb_auth::Principal;
 
 pub use deny::{AuthzError, ReachDecision};
 pub use host_callback::{ReachClient, ReachFilter};
+pub use pickup::{pickup_roster, GuardianPickupFacts};
 pub use records::{Edge, Guardian, StaffAssignment};
 pub use scope::{canonical_subject, edge_id, Scope};
 pub use store::{RecordError, RecordStore};

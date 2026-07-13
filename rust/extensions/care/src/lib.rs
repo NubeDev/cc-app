@@ -38,12 +38,14 @@ mod ping;
 // each verb is its own file (`create.rs`, `get.rs`, `list.rs`, …).
 // The cross-family matrix harness (tests/) exercises the chokepoint
 // the same way for every noun. All milestone-03 nouns now ship.
+pub mod attendance;
 pub mod center;
 pub mod child;
 pub mod enrollment;
 pub mod guardian;
 pub mod guardianship;
 pub mod invite;
+pub mod menu;
 pub mod room;
 
 // re-exported by the binary; left out of the lib so the only platform

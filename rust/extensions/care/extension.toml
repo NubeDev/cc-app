@@ -78,6 +78,17 @@ request = [
     "mcp:care.invite.list:call",
     "mcp:care.invite.resend:call",
     "mcp:care.invite.revoke:call",
+    # milestone 06 — attendance
+    "mcp:care.attendance.check_in:call",
+    "mcp:care.attendance.check_out:call",
+    "mcp:care.attendance.list:call",
+    "mcp:care.attendance.now:call",
+    "mcp:care.attendance.correct:call",
+    # milestone 07 — menus
+    "mcp:care.menu.set:call",
+    "mcp:care.menu.get:call",
+    "mcp:care.menu.week:call",
+    "mcp:care.menu.copy_week:call",
 
     # 2. generic store surface (Part B — record I/O over the host callback)
     "mcp:store.write:call",
@@ -92,6 +103,8 @@ request = [
     "store:guardianship:write",
     "store:enrollment:write",
     "store:invite:write",
+    "store:attendance_event:write",
+    "store:menu:write",
 
     # 3. era-2 reach + grant derivation + invites (host-callback verbs)
     "mcp:authz.check_scoped:call",
@@ -206,6 +219,37 @@ description = "Rotate an invite's token + TTL and re-enqueue its email."
 name        = "invite.revoke"
 description = "Revoke an invite (mirror first, then the lb durable kill)."
 
+# --- milestone 06: attendance (ledger + pickup gate + kiosk + ratios) ------
+[[tools]]
+name        = "attendance.check_in"
+description = "Append a check-in ledger event (staff, kiosk, or staff-presence)."
+[[tools]]
+name        = "attendance.check_out"
+description = "Append a check-out event, gated by pickup authorization (child-safety control; admin-capped audited override)."
+[[tools]]
+name        = "attendance.list"
+description = "List ledger events (admin all; staff room-scoped; guardian own-children via authz — rule 7)."
+[[tools]]
+name        = "attendance.now"
+description = "Derived per-room occupancy {children, staff, ratio} — a fold over the ledger, no mutable counter."
+[[tools]]
+name        = "attendance.correct"
+description = "Append a compensating correction event (correction_of); never edits the ledger."
+
+# --- milestone 07: menus & derived substitutions (food safety) -------------
+[[tools]]
+name        = "menu.set"
+description = "Upsert one (date, room, slot) menu cell with allergen-tagged items + substitutes."
+[[tools]]
+name        = "menu.get"
+description = "Read one menu cell (admin any room; staff room-scoped)."
+[[tools]]
+name        = "menu.week"
+description = "Guardian view: a child's room week + ONLY that child's derived substitution rows (rule 7 / medical-leak surface)."
+[[tools]]
+name        = "menu.copy_week"
+description = "Copy a room's whole week to a target week (idempotent)."
+
 # The PAGE this extension contributes to the sidebar (ui-federation). The
 # `entry` is the ESM remote the shell dynamic-imports, served under the
 # gateway's `/extensions/care/ui/` route.
@@ -225,6 +269,9 @@ scope = [
     "care.enrollment.create", "care.enrollment.list", "care.enrollment.update",
     "care.invite.create_guardian", "care.invite.create_staff",
     "care.invite.list", "care.invite.resend", "care.invite.revoke",
+    "care.attendance.check_in", "care.attendance.check_out",
+    "care.attendance.list", "care.attendance.now", "care.attendance.correct",
+    "care.menu.set", "care.menu.get", "care.menu.week", "care.menu.copy_week",
 ]
 
 [visibility]

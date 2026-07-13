@@ -31,12 +31,14 @@
 use lb_ext_native::{Caller, Tools};
 use serde::Deserialize;
 
+use crate::attendance;
 use crate::center;
 use crate::child;
 use crate::enrollment;
 use crate::guardian;
 use crate::guardianship;
 use crate::invite;
+use crate::menu;
 use crate::ping;
 use crate::room;
 
@@ -75,6 +77,17 @@ pub const TOOLS: &[&str] = &[
     "invite.list",
     "invite.resend",
     "invite.revoke",
+    // Milestone 06 — attendance (ledger, pickup gate, kiosk, ratios).
+    "attendance.check_in",
+    "attendance.check_out",
+    "attendance.list",
+    "attendance.now",
+    "attendance.correct",
+    // Milestone 07 — menus & derived substitutions (food safety).
+    "menu.set",
+    "menu.get",
+    "menu.week",
+    "menu.copy_week",
 ];
 
 /// The expected cap a caller must carry to invoke a `care.*` tool. The
@@ -114,6 +127,15 @@ pub const ADMIN_CAPS: &[&str] = &[
     "mcp:care.invite.list:call",
     "mcp:care.invite.resend:call",
     "mcp:care.invite.revoke:call",
+    "mcp:care.attendance.check_in:call",
+    "mcp:care.attendance.check_out:call",
+    "mcp:care.attendance.list:call",
+    "mcp:care.attendance.now:call",
+    "mcp:care.attendance.correct:call",
+    "mcp:care.menu.set:call",
+    "mcp:care.menu.get:call",
+    "mcp:care.menu.week:call",
+    "mcp:care.menu.copy_week:call",
 ];
 
 /// The input shape for `care.ping` — the only stateless verb. Every other
@@ -228,6 +250,15 @@ impl crate::Care {
             "invite.list" => invite::list::run(cp, &principal, input).await,
             "invite.resend" => invite::resend::run(cp, &principal, input).await,
             "invite.revoke" => invite::revoke::run(cp, &principal, input).await,
+            "attendance.check_in" => attendance::check_in::run(cp, &principal, input).await,
+            "attendance.check_out" => attendance::check_out::run(cp, &principal, input).await,
+            "attendance.list" => attendance::list::run(cp, &principal, input).await,
+            "attendance.now" => attendance::now::run(cp, &principal, input).await,
+            "attendance.correct" => attendance::correct::run(cp, &principal, input).await,
+            "menu.set" => menu::set::run(cp, &principal, input).await,
+            "menu.get" => menu::get::run(cp, &principal, input).await,
+            "menu.week" => menu::week::run(cp, &principal, input).await,
+            "menu.copy_week" => menu::copy_week::run(cp, &principal, input).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

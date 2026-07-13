@@ -48,6 +48,40 @@
     "guardian": "guardian",
     "other": "other"
   },
+  "menu": {
+    "saved": "Menu for {{slot}} on {{date}} saved.",
+    "week_copied": "Week copied to {{date}}.",
+    "unresolved_flag": "{{item}} needs a substitute for {{allergen}}."
+  },
+  "slot": {
+    "breakfast": "Breakfast",
+    "am_snack": "Morning snack",
+    "lunch": "Lunch",
+    "pm_snack": "Afternoon snack"
+  },
+  "allergen": {
+    "peanut": "peanut",
+    "tree_nut": "tree nut",
+    "milk": "dairy",
+    "egg": "egg",
+    "wheat": "gluten",
+    "soy": "soy",
+    "fish": "fish",
+    "shellfish": "shellfish",
+    "sesame": "sesame",
+    "untaggable": "untagged item"
+  },
+  "attendance": {
+    "checked_in": "{{name}} checked in.",
+    "checked_out": "{{name}} checked out.",
+    "corrected": "Correction recorded for {{name}}.",
+    "override_recorded": "Pickup override recorded for {{name}}.",
+    "deny": {
+      "not_authorized": "This person is not authorized to collect {{name}}.",
+      "unknown_person": "This person is not on {{name}}'s pickup list.",
+      "custody_hold": "Custody note on file for {{name}} — read it before release."
+    }
+  },
   "common": {
     "yes": "Yes",
     "no": "No",

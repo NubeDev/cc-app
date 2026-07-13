@@ -48,6 +48,40 @@
     "guardian": "tutor",
     "other": "otro"
   },
+  "menu": {
+    "saved": "Menú de {{slot}} del {{date}} guardado.",
+    "week_copied": "Semana copiada al {{date}}.",
+    "unresolved_flag": "{{item}} necesita un sustituto para {{allergen}}."
+  },
+  "slot": {
+    "breakfast": "Desayuno",
+    "am_snack": "Merienda de la mañana",
+    "lunch": "Almuerzo",
+    "pm_snack": "Merienda de la tarde"
+  },
+  "allergen": {
+    "peanut": "cacahuete/maní",
+    "tree_nut": "frutos secos",
+    "milk": "lácteos",
+    "egg": "huevo",
+    "wheat": "gluten",
+    "soy": "soya",
+    "fish": "pescado",
+    "shellfish": "marisco",
+    "sesame": "sésamo/ajonjolí",
+    "untaggable": "plato sin etiquetar"
+  },
+  "attendance": {
+    "checked_in": "{{name}} registró su entrada.",
+    "checked_out": "{{name}} registró su salida.",
+    "corrected": "Corrección registrada para {{name}}.",
+    "override_recorded": "Autorización de recogida registrada para {{name}}.",
+    "deny": {
+      "not_authorized": "Esta persona no está autorizada para recoger a {{name}}.",
+      "unknown_person": "Esta persona no está en la lista de recogida de {{name}}.",
+      "custody_hold": "Hay una nota de custodia para {{name}}: léela antes de entregar."
+    }
+  },
   "common": {
     "yes": "Sí",
     "no": "No",
