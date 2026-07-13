@@ -117,7 +117,11 @@ async fn child_list_shows_a_guardian_exactly_their_reached_children() {
     let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
     let mut names: Vec<&str> = v.iter().filter_map(|c| c["name"].as_str()).collect();
     names.sort();
-    assert_eq!(names, vec!["Leo", "Mia"], "Sam reaches Leo + Mia, got {names:?}");
+    assert_eq!(
+        names,
+        vec!["Leo", "Mia"],
+        "Sam reaches Leo + Mia, got {names:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -133,11 +137,19 @@ async fn child_list_is_reach_filtered_and_empty_on_no_reach() {
         Role::Member,
         &["mcp:care.child.list:call"],
     );
-    let out = child_list::run(&cp, &stranger, "").await.expect("empty, not error");
+    let out = child_list::run(&cp, &stranger, "")
+        .await
+        .expect("empty, not error");
     assert_eq!(out, "[]", "no reach ⇒ empty list, never an error or a leak");
 
     // Admin → sees all children (wildcard reach).
-    let admin = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.child.list:call"]);
+    let admin = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.child.list:call"],
+    );
     let out = child_list::run(&cp, &admin, "").await.expect("admin list");
     let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();
     assert_eq!(v.len(), 2, "admin reaches every child");
@@ -150,7 +162,13 @@ async fn child_create_is_admin_only_write() {
     // canonical journey; here we prove an admin write lands and reads back.
     let (store, key) = seed().await;
     let cp = Chokepoint::new(store.clone(), WS);
-    let admin = principal(&key, ADMIN, WS, Role::WorkspaceAdmin, &["mcp:care.child.create:call"]);
+    let admin = principal(
+        &key,
+        ADMIN,
+        WS,
+        Role::WorkspaceAdmin,
+        &["mcp:care.child.create:call"],
+    );
     child_create::run(
         &cp,
         &admin,

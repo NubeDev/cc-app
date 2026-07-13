@@ -166,7 +166,10 @@ mod tests {
     #[test]
     fn relationship_parses_the_enum_set() {
         assert_eq!(Relationship::parse("mother").unwrap(), Relationship::Mother);
-        assert_eq!(Relationship::parse("GUARDIAN").unwrap(), Relationship::Guardian);
+        assert_eq!(
+            Relationship::parse("GUARDIAN").unwrap(),
+            Relationship::Guardian
+        );
         assert!(Relationship::parse("cousin").is_err());
     }
 

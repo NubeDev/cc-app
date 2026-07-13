@@ -5,9 +5,12 @@
 # stdio via the `lb-ext-native` SDK; we talk the child wire
 # (init/health/call/shutdown) and serve the `care.*` tool set.
 #
-# Today: one verb (`care.ping`) — the loop proof, plus the authz
-# chokepoint's two-call API as a Rust module the matrix harness exercises.
-# Per-verb folders (center/room/child/…) wire up in later milestones.
+# The full milestone-03+05 verb set is declared below — center / room /
+# child / guardian / guardianship / enrollment / invite (plus `ping`). The
+# host grants `requested ∩ admin_approved` per install and re-checks every
+# cap per call; a verb the manifest does not declare is unreachable, so this
+# list IS the contract (it must stay in lock-step with `Tools::TOOLS` in
+# src/call.rs — the `tools()` handshake refuses to start on a mismatch).
 [extension]
 id          = "care"
 version     = "0.1.0"
@@ -20,46 +23,209 @@ world       = "lazybones:ext/extension@0.2.0"   # the ABI-gate world the host ch
 placement   = "either"
 
 # The native supervision recipe the host turns into an `lb_supervisor::Spec`. `exec` is resolved by the
-# host against the per-workspace install dir (`$LB_DIR/native/<ws>/care/`) where the published binary
-# is written.
+# host against the install dir it is handed at install time (cc-node points this at the built `care`
+# binary in the workspace target dir — see `rust/node/src/care_mount.rs`).
 [native]
 exec        = "care"
 args        = []
 restart     = "on-crash"
 
 [capabilities]
-# The tools this extension exposes. The host re-checks every cap per call;
-# the install grant is `requested ∩ admin_approved`. Today: just `care.ping`.
-# As milestone 03+ verbs land, add their `mcp:care.<verb>:call` caps here.
+# The caps this extension REQUESTS. The install grant is `requested ∩
+# admin_approved`; the host re-checks every cap per call. Three groups:
 #
-# The authz chokepoint's reads of `guardianship` / `staff_assignment` are
-# server-side state — they need NO host-side cap (the chokepoint is the
-# second gate, not a cap; the cap that the verb body needs is the one
-# named below).
+#   1. `mcp:care.<verb>:call` — the per-verb wall caps the host checks
+#      before routing a `care.*` call to the sidecar (one per served verb).
+#   2. `mcp:store.<verb>:call` + `store:<table>:write` — the generic store
+#      surface the sidecar reaches the node's DURABLE store through, over
+#      the host callback (Part B: the node is the single source of truth; a
+#      spawned sidecar owns no durable store). `store.write`/`store.delete`
+#      gate on `mcp:store.<verb>:call` (outer) AND `store:<table>:write`
+#      (inner, per-table) — so both are requested for every care table.
+#      `store.query` (the read/list path) gates on `mcp:store.query:call`.
+#   3. `mcp:authz.*` / `mcp:grants.*` / `mcp:invite.*` — the era-2 reach +
+#      grant-derivation + invite verbs the chokepoint and the invite verbs
+#      call back into the core (already live since node-v0.3.0/0.3.2).
+#
+# The authz chokepoint's reads of `guardianship` / `staff_assignment` in
+# the era-1 fallback are server-side state and need no host-side cap; era-2
+# reach is `authz.check_scoped` / `authz.scope_filter` below.
 request = [
+    # 1. per-verb wall caps (one per Tools::TOOLS entry)
     "mcp:care.ping:call",
+    "mcp:care.center.create:call",
+    "mcp:care.center.get:call",
+    "mcp:care.center.list:call",
+    "mcp:care.room.create:call",
+    "mcp:care.room.get:call",
+    "mcp:care.room.list:call",
+    "mcp:care.child.create:call",
+    "mcp:care.child.get:call",
+    "mcp:care.child.list:call",
+    "mcp:care.child.update:call",
+    "mcp:care.child.archive:call",
+    "mcp:care.guardian.create:call",
+    "mcp:care.guardian.get:call",
+    "mcp:care.guardian.list:call",
+    "mcp:care.guardianship.link:call",
+    "mcp:care.guardianship.unlink:call",
+    "mcp:care.guardianship.update:call",
+    "mcp:care.enrollment.create:call",
+    "mcp:care.enrollment.list:call",
+    "mcp:care.enrollment.update:call",
+    "mcp:care.invite.create_guardian:call",
+    "mcp:care.invite.create_staff:call",
+    "mcp:care.invite.list:call",
+    "mcp:care.invite.resend:call",
+    "mcp:care.invite.revoke:call",
+
+    # 2. generic store surface (Part B — record I/O over the host callback)
+    "mcp:store.write:call",
+    "mcp:store.query:call",
+    "mcp:store.delete:call",
+    # per-table write gate (inner gate on store.write / store.delete), one
+    # per durable care table the verbs mutate.
+    "store:center:write",
+    "store:room:write",
+    "store:child:write",
+    "store:guardian:write",
+    "store:guardianship:write",
+    "store:enrollment:write",
+    "store:invite:write",
+
+    # 3. era-2 reach + grant derivation + invites (host-callback verbs)
+    "mcp:authz.check_scoped:call",
+    "mcp:authz.scope_filter:call",
+    # The delegation marker: naming a `subject` other than the caller's own
+    # token on `authz.check_scoped`/`scope_filter` requires this cap
+    # (native-caller-identity scope, node-v0.4.0). The chokepoint asks reach
+    # questions ABOUT the guardian who made the call — `subject = caller.sub`
+    # — so the sidecar MUST hold it; without it, a present `subject` is a hard
+    # 403 (fail closed) and every guardian read would deny.
+    "mcp:authz.delegate_reach:call",
+    "mcp:grants.assign:call",
+    "mcp:grants.revoke:call",
+    # The reach cap the guardian-reach scoped grants are keyed on. lb's
+    # `grants.assign` enforces no-widening: to GRANT `mcp:care.reach.child:call`
+    # (scoped to a child) on `guardianship.link`, the sidecar must itself HOLD
+    # that cap (host `authz/grants.rs` — `holds_cap`). So it is requested here;
+    # it is the derive-path granter cap, not a verb the sidecar serves.
+    "mcp:care.reach.child:call",
+    "mcp:invite.create:call",
+    "mcp:invite.resend:call",
+    "mcp:invite.revoke:call",
 ]
 
-# The native tools the sidecar serves (bare names; the host owns the
-# `care.` prefix and the install grant's `mcp:care.<name>:call` form).
+# The native tools the sidecar serves (BARE names; the host owns the
+# `care.` prefix and the install grant's `mcp:care.<name>:call` form). This
+# list mirrors `Tools::TOOLS` exactly — the `tools()` handshake refuses to
+# start if the sidecar serves a name the manifest doesn't declare.
 [[tools]]
 name        = "ping"
 description = "Workspace-tagged snapshot served by the care sidecar — proves the Tier-2 backend tool is reachable through the cap gate (milestone 02 loop proof)."
 
-# The PAGE this extension contributes to the sidebar (ui-federation).
-# Shipped from milestone 04 (the mobile-shell UI work, which depends on
-# lb's minimal-shell scope that is churning in milestone 00). The
+[[tools]]
+name        = "center.create"
+description = "Admin creates a center record (name, address, locale)."
+[[tools]]
+name        = "center.get"
+description = "Read one center by id (admin; reach-audited)."
+[[tools]]
+name        = "center.list"
+description = "List centers (admin wildcard; reach-filtered otherwise)."
+
+[[tools]]
+name        = "room.create"
+description = "Admin creates a room inside a center."
+[[tools]]
+name        = "room.get"
+description = "Read one room by id (reach-audited)."
+[[tools]]
+name        = "room.list"
+description = "List rooms (admin all; staff filtered to assigned rooms)."
+
+[[tools]]
+name        = "child.create"
+description = "Admin creates a child record (DOB, allergies, medical, photo consent)."
+[[tools]]
+name        = "child.get"
+description = "Read one child by id (reach-gated — rule 7)."
+[[tools]]
+name        = "child.list"
+description = "List children (admin all; guardian/staff reach-filtered — rule 7)."
+[[tools]]
+name        = "child.update"
+description = "Update a child's mutable fields (reach-gated)."
+[[tools]]
+name        = "child.archive"
+description = "Archive (not delete) a child record; hidden from non-admin reads."
+
+[[tools]]
+name        = "guardian.create"
+description = "Admin creates a guardian record (records-before-accounts)."
+[[tools]]
+name        = "guardian.get"
+description = "Read one guardian by id (admin)."
+[[tools]]
+name        = "guardian.list"
+description = "List guardians (admin)."
+
+[[tools]]
+name        = "guardianship.link"
+description = "Link a guardian to a child (the five edge flags); derives the era-2 reach grant."
+[[tools]]
+name        = "guardianship.unlink"
+description = "Remove a guardianship edge; revokes the derived reach grant."
+[[tools]]
+name        = "guardianship.update"
+description = "Update an existing guardianship edge's flags."
+
+[[tools]]
+name        = "enrollment.create"
+description = "Enrol a child in a room (or waitlist, FIFO per room)."
+[[tools]]
+name        = "enrollment.list"
+description = "List enrollments (admin)."
+[[tools]]
+name        = "enrollment.update"
+description = "Update an enrollment's status (keeps the waitlist seq)."
+
+[[tools]]
+name        = "invite.create_guardian"
+description = "Mint a guardian invite over the host callback; persist the local mirror."
+[[tools]]
+name        = "invite.create_staff"
+description = "Mint a staff invite (slot + room) over the host callback."
+[[tools]]
+name        = "invite.list"
+description = "List invites from the local mirror (Pending + Revoked)."
+[[tools]]
+name        = "invite.resend"
+description = "Rotate an invite's token + TTL and re-enqueue its email."
+[[tools]]
+name        = "invite.revoke"
+description = "Revoke an invite (mirror first, then the lb durable kill)."
+
+# The PAGE this extension contributes to the sidebar (ui-federation). The
 # `entry` is the ESM remote the shell dynamic-imports, served under the
-# gateway's `/extensions/care/ui/` route. Today the UI folder is a stub
-# (no `defineRemote` yet); the UI bundle lands with milestone 04.
+# gateway's `/extensions/care/ui/` route.
 [ui]
 entry = "remoteEntry.js"
 label = "Care"
 icon  = "users"
-# The verb scopes the page reaches. Today: just `care.ping`. The list
-# grows with each verb; the page's bridge filter narrows to
+# The verb scopes the page reaches. The page's bridge filter narrows to
 # `scope ∩ install grant`, and the host re-checks each call.
-scope = ["care.ping"]
+scope = [
+    "care.center.create", "care.center.get", "care.center.list",
+    "care.room.create", "care.room.get", "care.room.list",
+    "care.child.create", "care.child.get", "care.child.list",
+    "care.child.update", "care.child.archive",
+    "care.guardian.create", "care.guardian.get", "care.guardian.list",
+    "care.guardianship.link", "care.guardianship.unlink", "care.guardianship.update",
+    "care.enrollment.create", "care.enrollment.list", "care.enrollment.update",
+    "care.invite.create_guardian", "care.invite.create_staff",
+    "care.invite.list", "care.invite.resend", "care.invite.revoke",
+]
 
 [visibility]
 class = "public"

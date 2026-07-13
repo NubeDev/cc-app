@@ -34,6 +34,13 @@
     "updated": "Inscripción de {{child}} actualizada.",
     "withdrawn": "{{child}} dado de baja de {{room}}."
   },
+  "invite": {
+    "guardian_created": "Invitación enviada a {{email}} para {{guardian}}.",
+    "staff_created": "Invitación enviada a {{email}} para el puesto de personal de {{room}}.",
+    "revoked": "Invitación a {{email}} revocada.",
+    "already_revoked": "La invitación {{id}} ya está revocada.",
+    "resent": "Invitación a {{email}} reenviada."
+  },
   "relationship": {
     "mother": "madre",
     "father": "padre",

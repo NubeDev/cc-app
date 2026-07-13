@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
+import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCareApi } from "../../api/care";
-import { PageTitle } from "../../components/PageTitle";
+import { LargeTitle } from "../../components/LargeTitle";
+import { Field } from "../../components/Field";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Segmented } from "../../components/ui/segmented";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { cn } from "../../lib/cn";
 import { useT } from "../../hooks/useT";
 
 export interface EnrollmentRow {
@@ -16,8 +23,9 @@ export interface ChildRow { id: string; name: string; }
 export interface RoomRow { id: string; name: string; }
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+const STATUSES = ["enrolled", "waitlist", "withdrawn"] as const;
 
-export function EnrollmentListPage() {
+export function EnrollmentListPage({ embedded }: { embedded?: boolean } = {}) {
   const t = useT();
   const api = useCareApi();
   const [rows, setRows] = useState<EnrollmentRow[] | null>(null);
@@ -46,21 +54,23 @@ export function EnrollmentListPage() {
     const filtered = (rows ?? []).filter((r) => r.room_id === waitlistRoom && r.status === "waitlist").sort((a, b) => (a.waitlist_seq ?? 0) - (b.waitlist_seq ?? 0));
     return (
       <main className="pb-24">
-        <PageTitle>{t("enrollment.waitlist.title")}</PageTitle>
-        <div className="px-4">
-          <button onClick={() => setWaitlistRoom(null)} className="mb-4 text-sm text-primary">← {t("common.back")}</button>
-          <h2 className="pb-3 text-base font-semibold">{rooms.find((r) => r.id === waitlistRoom)?.name}</h2>
+        <LargeTitle>{t("enrollment.waitlist.title")}</LargeTitle>
+        <div className="px-4 pt-1">
+          <Button variant="ghost" size="sm" className="mb-3 -ml-2 text-primary" onClick={() => setWaitlistRoom(null)}>
+            <ChevronLeft /> {t("common.back")}
+          </Button>
+          <h2 className="pb-3 text-base font-semibold text-foreground">{rooms.find((r) => r.id === waitlistRoom)?.name}</h2>
           {!filtered.length ? (
-            <p className="py-6 text-center text-sm opacity-60">{t("enrollment.waitlist_empty")}</p>
+            <p className="py-16 text-center text-[15px] text-muted-foreground">{t("enrollment.waitlist_empty")}</p>
           ) : (
             <ol className="space-y-2">
               {filtered.map((r, i) => {
                 const child = children.find((c) => c.id === r.child_id);
                 return (
-                  <li key={r.id ?? `${r.child_id}-${i}`} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{i + 1}</span>
-                    <span className="flex-1 font-medium">{child?.name ?? r.child_id}</span>
-                    <span className="text-xs opacity-60">{r.waitlist_seq ? t("enrollment.position", { position: String(r.waitlist_seq) }) : ""}</span>
+                  <li key={r.id ?? `${r.child_id}-${i}`} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{i + 1}</span>
+                    <span className="flex-1 font-medium text-foreground">{child?.name ?? r.child_id}</span>
+                    <span className="text-xs text-muted-foreground">{r.waitlist_seq ? t("enrollment.position", { position: String(r.waitlist_seq) }) : ""}</span>
                   </li>
                 );
               })}
@@ -79,25 +89,26 @@ export function EnrollmentListPage() {
   }
 
   return (
-    <main className="pb-24">
-      <PageTitle>{t("enrollment.list.title")}</PageTitle>
-      <div className="px-4">
-        <button onClick={() => setCreating(true)} className="mb-4 w-full rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground">
-          + {t("enrollment.editor.title.new")}
-        </button>
+    <main className={embedded ? "" : "pb-24"}>
+      {!embedded && <LargeTitle>{t("enrollment.list.title")}</LargeTitle>}
+      <div className="px-4 pt-1">
+        <Button className="mb-4 w-full" onClick={() => setCreating(true)}>
+          <Plus /> {t("enrollment.editor.title.new")}
+        </Button>
         {rooms.map((room) => {
           const list = (byRoom.get(room.id) ?? []).filter((r) => r.status !== "withdrawn");
           const wait = list.filter((r) => r.status === "waitlist").sort((a, b) => (a.waitlist_seq ?? 0) - (b.waitlist_seq ?? 0));
           const enrolled = list.filter((r) => r.status === "enrolled");
           return (
-            <section key={room.id} className="mb-4 rounded-2xl border border-border bg-card p-4">
+            <section key={room.id} className="mb-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
               <header className="flex items-baseline justify-between">
-                <h2 className="text-base font-semibold">{room.name}</h2>
-                <span className="text-xs opacity-60">{enrolled.length} {t("enrollment.status.enrolled")}</span>
+                <h2 className="text-base font-semibold text-foreground">{room.name}</h2>
+                <span className="text-xs text-muted-foreground">{enrolled.length} {t("enrollment.status.enrolled")}</span>
               </header>
               {wait.length > 0 && (
-                <button onClick={() => setWaitlistRoom(room.id)} className="mt-2 block w-full rounded-xl bg-muted/60 px-3 py-2 text-left text-sm">
-                  {wait.length} {t("enrollment.status.waitlist")} →
+                <button onClick={() => setWaitlistRoom(room.id)} className="mt-3 flex w-full items-center justify-between rounded-xl bg-muted px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent">
+                  <span>{wait.length} {t("enrollment.status.waitlist")}</span>
+                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                 </button>
               )}
               {enrolled.length > 0 && (
@@ -106,10 +117,10 @@ export function EnrollmentListPage() {
                     const child = children.find((c) => c.id === r.child_id);
                     return (
                       <li key={r.id ?? `${r.child_id}-${r.room_id}`}>
-                        <button onClick={() => setEditing(r)} className="block w-full text-left text-sm">
-                          {child?.name ?? r.child_id}
+                        <button onClick={() => setEditing(r)} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-accent">
+                          <span className="font-medium">{child?.name ?? r.child_id}</span>
                           {r.schedule && r.schedule.length > 0 && (
-                            <span className="ml-2 text-xs opacity-60">{r.schedule.map((d) => t(`enrollment.day.${d}`)).join(" ")}</span>
+                            <span className="text-xs text-muted-foreground">{r.schedule.map((d) => t(`enrollment.day.${d}`)).join(" ")}</span>
                           )}
                         </button>
                       </li>
@@ -165,53 +176,61 @@ function EnrollmentEditor({ initial, rooms, children, onDone }: { initial: Enrol
 
   return (
     <main className="pb-24">
-      <PageTitle>{initial ? t("enrollment.editor.title.edit") : t("enrollment.editor.title.new")}</PageTitle>
-      <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4 px-4">
+      <LargeTitle>{initial ? t("enrollment.editor.title.edit") : t("enrollment.editor.title.new")}</LargeTitle>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4 px-4 pt-1">
         <Field label={t("enrollment.child")}>
-          <select value={childId} onChange={(e) => setChildId(e.target.value)} disabled={!!initial} className="w-full rounded-xl border border-border bg-card px-3 py-2.5 disabled:opacity-60">
-            {children.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <Select value={childId} onValueChange={setChildId} disabled={!!initial}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {children.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </Field>
         <Field label={t("enrollment.room")}>
-          <select value={roomId} onChange={(e) => setRoomId(e.target.value)} disabled={!!initial} className="w-full rounded-xl border border-border bg-card px-3 py-2.5 disabled:opacity-60">
-            {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
+          <Select value={roomId} onValueChange={setRoomId} disabled={!!initial}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </Field>
         <Field label={t("enrollment.status")}>
-          <div className="grid grid-cols-3 gap-2">
-            {(["enrolled", "waitlist", "withdrawn"] as const).map((s) => (
-              <button key={s} type="button" onClick={() => setStatus(s)} className={`rounded-xl border px-2 py-2.5 text-xs ${status === s ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>
-                {t(`enrollment.status.${s}`)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            columns={STATUSES.length}
+            value={status}
+            onChange={setStatus}
+            segments={STATUSES.map((s) => ({ value: s, label: t(`enrollment.status.${s}`) }))}
+          />
         </Field>
         <Field label={t("enrollment.schedule")}>
-          <div className="grid grid-cols-7 gap-1">
-            {DAYS.map((d) => (
-              <button key={d} type="button" onClick={() => toggleDay(d)} className={`rounded-lg border px-1 py-2 text-xs ${schedule.includes(d) ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>
-                {t(`enrollment.day.${d}`)}
-              </button>
-            ))}
+          <div className="grid grid-cols-7 gap-1.5">
+            {DAYS.map((d) => {
+              const on = schedule.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleDay(d)}
+                  className={cn(
+                    "rounded-xl border py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t(`enrollment.day.${d}`)}
+                </button>
+              );
+            })}
           </div>
         </Field>
-        <Field label={t("enrollment.start_date")}>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full rounded-xl border border-border bg-card px-3 py-2.5" />
+        <Field label={t("enrollment.start_date")} htmlFor="en-start">
+          <Input id="en-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </Field>
-        <div className="flex gap-2 pt-4">
-          <button type="button" onClick={onDone} className="flex-1 rounded-xl border border-border px-4 py-3">{t("common.cancel")}</button>
-          <button type="submit" disabled={busy} className="flex-1 rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground disabled:opacity-50">{t("common.save")}</button>
+        <div className="flex gap-2 pt-2">
+          <Button type="button" variant="outline" className="flex-1" onClick={onDone}>{t("common.cancel")}</Button>
+          <Button type="submit" className="flex-1" disabled={busy}>{t("common.save")}</Button>
         </div>
       </form>
     </main>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block pb-1.5 text-sm text-muted-foreground">{label}</span>
-      {children}
-    </label>
   );
 }

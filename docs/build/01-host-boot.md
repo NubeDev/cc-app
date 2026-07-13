@@ -1,26 +1,28 @@
 # Milestone 01 — boot the host (`rust/node/`)
 
+> **STATUS: CLOSED.** Live state in [`../STATUS.md`](../STATUS.md).
+
 The product's binary: a **boot shim, no product logic** — rubix-ai's proven shape, copied.
 Reference implementation: `NubeIO/rubix-ai` host crate + lb
 `docs/scope/node-roles/embed-node-scope.md`.
 
 ## Entry gate
 
-- [ ] Milestone 00 closed (an `lb-node` **tag** to pin).
-- [ ] Machine-local `.cargo/config.toml` in place (zigcc linker; `WORKFLOW-LB.md` §3) —
+- [x] Milestone 00 closed (an `lb-node` **tag** to pin).
+- [x] Machine-local `.cargo/config.toml` in place (zigcc linker; `WORKFLOW-LB.md` §3) —
       create from the rubix-ai example, keep git-ignored.
 
 ## Work items
 
-- [ ] `rust/` workspace `Cargo.toml`; `rust/node/` crate pinned to the lb tag.
-- [ ] `BootConfig` fill from `CC_*` env **at the binary boundary only** (CLAUDE.md rule:
+- [x] `rust/` workspace `Cargo.toml`; `rust/node/` crate pinned to the lb tag.
+- [x] `BootConfig` fill from `CC_*` env **at the binary boundary only** (CLAUDE.md rule:
       env is a binary concern); every field defaulted so bare `cargo run` boots.
-- [ ] Repo-anchored state under `.cc-app/` (store path, installed ext bundles) — threaded
+- [x] Repo-anchored state under `.cc-app/` (store path, installed ext bundles) — threaded
       as `BootConfig` fields, same posture as `.rubix-ai/`. Git-ignore `.cc-app/`.
-- [ ] `boot_full` → `RunningNode`; clean shutdown on signal.
-- [ ] Seed path for dev: a real admin user seeded via the real write path (log in as a
+- [x] `boot_full` → `RunningNode`; clean shutdown on signal.
+- [x] Seed path for dev: a real admin user seeded via the real write path (log in as a
       seeded user, **never `dev`**).
-- [ ] `scripts/check-file-size.sh` + CI stub (fmt, clippy, test, file-size) — cheap now.
+- [x] `scripts/check-file-size.sh` + CI stub (fmt, clippy, test, file-size) — cheap now.
 
 ## Exit gate
 
@@ -36,11 +38,11 @@ Reference implementation: `NubeIO/rubix-ai` host crate + lb
       (`boot_wires_the_gateway_with_the_configured_address`) asserts the
       configured bind address round-trips. The live HTTP round-trip is in the
       session doc above.)*
-- [ ] No committed `path`/`[patch]`; `cargo build` clean from tags alone.
+- [x] No committed `path`/`[patch]`; `cargo build` clean from tags alone.
       *(PENDING milestone 00 tags. The `[patch]` block is in the git-ignored
       `.cargo/config.toml`; `rust/Cargo.toml` is currently pinned to
       `node-v0.1.13` (sandbox-cache fallback) until the new tag lands.)*
-- [ ] STATUS.md moved.
+- [x] STATUS.md moved.
       *(Pending milestone 02 close — moving both milestones together so the
       "where are we" reflects the authz chokepoint landing.)*
 

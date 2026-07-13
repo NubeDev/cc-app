@@ -16,9 +16,8 @@
 //! alone is the reach source — the chokepoint resolves from it directly.
 
 use lb_auth::Principal;
-use lb_store::{create as store_create, delete as store_delete, StoreError};
 
-use crate::authz::{assert_reach, grant, Chokepoint};
+use crate::authz::{assert_reach, grant, Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::guardianship::{edge_id, EdgeFlags, Guardianship, GuardianshipError, Relationship};
 use crate::i18n::t;
@@ -58,7 +57,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .map_err(|e| format!("invalid care.guardianship.link input: {e}"))?;
 
     if parsed.guardian_sub.is_empty() {
-        return Err(format!("{}", GuardianshipError::MissingField("guardian_sub")));
+        return Err(format!(
+            "{}",
+            GuardianshipError::MissingField("guardian_sub")
+        ));
     }
     if parsed.child_id.is_empty() {
         return Err(format!("{}", GuardianshipError::MissingField("child_id")));
@@ -66,9 +68,16 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     let relationship = Relationship::parse(&parsed.relationship).map_err(|e| format!("{e}"))?;
     let locale = Locale::parse(parsed.locale.as_deref().unwrap_or("en")).unwrap_or(Locale::En);
 
-    let id = edge_id(&parsed.guardian_sub, &parsed.child_id);
+    // Canonicalise the guardian subject to the auth-subject form (`user:<x>`)
+    // the reach path keys on — so the edge id, the era-1 lookup
+    // (`principal.sub()`), and the era-2 grant subject all address the SAME
+    // identity (a bare id would parse-reject in `grants.assign` AND miss the
+    // era-1 edge read). See `authz::canonical_subject`.
+    let guardian_sub = crate::authz::canonical_subject(&parsed.guardian_sub);
+
+    let id = edge_id(&guardian_sub, &parsed.child_id);
     let edge = Guardianship {
-        guardian_sub: parsed.guardian_sub.clone(),
+        guardian_sub: guardian_sub.clone(),
         child_id: parsed.child_id.clone(),
         relationship,
         live: true,
@@ -83,11 +92,14 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     let value = serde_json::to_value(&edge).map_err(|e| format!("serialize edge: {e}"))?;
 
     // 1) Write the edge FIRST (first-write; a duplicate pair conflicts).
-    store_create(&cp.store, &cp.ws, "guardianship", &id, &value)
+    cp.records()
+        .create("guardianship", &id, &value)
         .await
         .map_err(|e| match e {
-            StoreError::Conflict => format!("{}", GuardianshipError::AlreadyExists(id.clone())),
-            other => format!("{}: {other}", GuardianshipError::StoreDenied("link".into())),
+            RecordError::Conflict => format!("{}", GuardianshipError::AlreadyExists(id.clone())),
+            RecordError::Store(s) => {
+                format!("{}: {s}", GuardianshipError::StoreDenied("link".into()))
+            }
         })?;
 
     // 2) Derive the scoped reach grant (era 2). If it fails, ROLL BACK the
@@ -95,18 +107,13 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     //    (a lockout). Era-1 fallback (no client): the edge alone is reach,
     //    nothing to derive.
     if let Some(reach) = cp.reach() {
-        if let Err(e) = grant::derive_reach(reach.client(), &parsed.guardian_sub, &parsed.child_id)
-            .await
-        {
+        if let Err(e) = grant::derive_reach(reach.client(), &guardian_sub, &parsed.child_id).await {
             // Roll the edge back so edge-and-grant stays all-or-nothing. If the
             // rollback ITSELF fails, surface the divergence LOUDLY (a live edge
             // with no grant = a lockout the admin must know about) via the typed
             // `Diverged` error rather than swallow it. The words live in the
             // error's Display (records.rs); only the dynamic id + cause pass here.
-            let err = if store_delete(&cp.store, &cp.ws, "guardianship", &id)
-                .await
-                .is_ok()
-            {
+            let err = if cp.records().delete("guardianship", &id).await.is_ok() {
                 GuardianshipError::GrantDerivationFailed(e.to_string())
             } else {
                 GuardianshipError::GrantDerivationDiverged {
@@ -128,9 +135,17 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             locale,
             "guardian.linked",
             &[
-                ("guardian", &parsed.guardian_sub),
+                ("guardian", &guardian_sub),
                 ("child", &parsed.child_id),
-                ("relationship", t(locale, &format!("relationship.{}", relationship.as_key()), &[]).as_str()),
+                (
+                    "relationship",
+                    t(
+                        locale,
+                        &format!("relationship.{}", relationship.as_key()),
+                        &[],
+                    )
+                    .as_str(),
+                ),
             ],
         ),
     };

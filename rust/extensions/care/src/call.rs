@@ -28,7 +28,7 @@
 //! `unlink` / `update` fail loud — see `authz/grant.rs` — and the chokepoint's
 //! era-1 read fallback stays the live path.
 
-use lb_ext_native::Tools;
+use lb_ext_native::{Caller, Tools};
 use serde::Deserialize;
 
 use crate::center;
@@ -36,6 +36,7 @@ use crate::child;
 use crate::enrollment;
 use crate::guardian;
 use crate::guardianship;
+use crate::invite;
 use crate::ping;
 use crate::room;
 
@@ -44,9 +45,9 @@ use crate::room;
 /// unknown-tool dispatch early, AND in the manifest's `[[tools]]` list so
 /// the install grant is computed against the actual surface.
 ///
-/// Every verb the m03 milestone added to the chokepoint's surface lives
-/// here so the dispatcher is the WHOLE contract (CLAUDE.md §4a — build the
-/// whole contract, not the easy half).
+/// Every verb the m03 + m05 milestones added to the chokepoint's
+/// surface lives here so the dispatcher is the WHOLE contract
+/// (CLAUDE.md §4a — build the whole contract, not the easy half).
 pub const TOOLS: &[&str] = &[
     "ping",
     "center.create",
@@ -69,6 +70,11 @@ pub const TOOLS: &[&str] = &[
     "enrollment.create",
     "enrollment.list",
     "enrollment.update",
+    "invite.create_guardian",
+    "invite.create_staff",
+    "invite.list",
+    "invite.resend",
+    "invite.revoke",
 ];
 
 /// The expected cap a caller must carry to invoke a `care.*` tool. The
@@ -103,6 +109,11 @@ pub const ADMIN_CAPS: &[&str] = &[
     "mcp:care.enrollment.create:call",
     "mcp:care.enrollment.list:call",
     "mcp:care.enrollment.update:call",
+    "mcp:care.invite.create_guardian:call",
+    "mcp:care.invite.create_staff:call",
+    "mcp:care.invite.list:call",
+    "mcp:care.invite.resend:call",
+    "mcp:care.invite.revoke:call",
 ];
 
 /// The input shape for `care.ping` — the only stateless verb. Every other
@@ -139,6 +150,41 @@ impl Tools for crate::Care {
     }
 
     async fn call(&mut self, tool: &str, input: &str) -> Result<String, String> {
+        // The caller-agnostic entry point — reached only on an old-host
+        // frame or a direct `/native/call` with no caller (the era-1
+        // in-process test path). `None` ⇒ the synthetic admin fallback (see
+        // `Care::principal_for_caller`). A real spawned sidecar on
+        // `node-v0.4.0`+ always goes through `call_with_caller` below with a
+        // real frame caller, so a guardian dispatch never lands here.
+        self.dispatch(tool, input, None).await
+    }
+
+    async fn call_with_caller(
+        &mut self,
+        tool: &str,
+        input: &str,
+        caller: Option<Caller>,
+    ) -> Result<String, String> {
+        // The native-caller-identity path (`sdk-v0.4.0`): the host stamped
+        // the authorized caller into the frame. Thread it to the verb layer
+        // so the chokepoint's role check + `subject`-parameterized reach are
+        // ABOUT the real caller — the row-level second gate that enforces
+        // rule 7 in the sidecar (guardian isolation).
+        self.dispatch(tool, input, caller).await
+    }
+}
+
+impl crate::Care {
+    /// The one dispatch body both wire entry points share. `caller` is the
+    /// frame caller (`Some` on a `node-v0.4.0`+ routed call, `None` on the
+    /// era-1 in-process path); `principal_for_caller` projects it into the
+    /// principal every verb body + the chokepoint sees (rule 7).
+    async fn dispatch(
+        &mut self,
+        tool: &str,
+        input: &str,
+        caller: Option<Caller>,
+    ) -> Result<String, String> {
         // The host's routed native adapter re-qualifies the tool as
         // `care.<tool>` before it reaches us, while the direct
         // `/native/call` bridge passes the bare name. Match on the tail
@@ -147,13 +193,12 @@ impl Tools for crate::Care {
         let verb = tool.strip_prefix("care.").unwrap_or(tool);
 
         // Every verb body takes a `Chokepoint` (era-2 read delegation +
-        // era-1 fallback) plus the principal (carried on `Care` so the
-        // verb layer doesn't plumb it). Build the principal ONCE per
-        // call from the per-call JWT the supervisor stamps into the
-        // environment for the duration of this dispatch — a host that
-        // wants per-cap re-checks provides the principal in
-        // `LB_EXT_PRINCIPAL_JSON` (see `principal_from_env` below).
-        let principal = self.principal_for_call();
+        // era-1 fallback) plus the principal. The principal comes from the
+        // native call FRAME the host stamped (native-caller-identity scope):
+        // `principal_for_caller` projects `caller` into the typed principal
+        // per dispatch (rule 5 — the frame is read at the boundary, never in
+        // a verb body).
+        let principal = self.principal_for_caller(caller);
         let cp = self.chokepoint();
 
         match verb {
@@ -178,6 +223,11 @@ impl Tools for crate::Care {
             "enrollment.create" => enrollment::create::run(cp, &principal, input).await,
             "enrollment.list" => enrollment::list::run(cp, &principal, input).await,
             "enrollment.update" => enrollment::update::run(cp, &principal, input).await,
+            "invite.create_guardian" => invite::create_guardian::run(cp, &principal, input).await,
+            "invite.create_staff" => invite::create_staff::run(cp, &principal, input).await,
+            "invite.list" => invite::list::run(cp, &principal, input).await,
+            "invite.resend" => invite::resend::run(cp, &principal, input).await,
+            "invite.revoke" => invite::revoke::run(cp, &principal, input).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

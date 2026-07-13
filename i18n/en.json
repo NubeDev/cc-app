@@ -34,6 +34,13 @@
     "updated": "Enrollment for {{child}} updated.",
     "withdrawn": "{{child}} withdrawn from {{room}}."
   },
+  "invite": {
+    "guardian_created": "Invite sent to {{email}} for {{guardian}}.",
+    "staff_created": "Invite sent to {{email}} for the {{room}} staff role.",
+    "revoked": "Invite to {{email}} revoked.",
+    "already_revoked": "Invite {{id}} is already revoked.",
+    "resent": "Invite to {{email}} re-sent."
+  },
   "relationship": {
     "mother": "mother",
     "father": "father",

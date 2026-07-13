@@ -6,9 +6,8 @@
 //! validation before the store call so a malformed profile never lands.
 
 use lb_auth::Principal;
-use lb_store::{create as store_create, StoreError};
 
-use crate::authz::{assert_reach, Chokepoint};
+use crate::authz::{assert_reach, Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::child::{validate_dob, Child, ChildError, EmergencyContact, PickupPerson};
 use crate::i18n::t;
@@ -69,11 +68,12 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     };
     let value = serde_json::to_value(&child).map_err(|e| format!("serialize child: {e}"))?;
 
-    store_create(&cp.store, &cp.ws, "child", &parsed.id, &value)
+    cp.records()
+        .create("child", &parsed.id, &value)
         .await
         .map_err(|e| match e {
-            StoreError::Conflict => format!("{}", ChildError::AlreadyExists(parsed.id.clone())),
-            other => format!("{}: {other}", ChildError::StoreDenied("create".into())),
+            RecordError::Conflict => format!("{}", ChildError::AlreadyExists(parsed.id.clone())),
+            RecordError::Store(s) => format!("{}: {s}", ChildError::StoreDenied("create".into())),
         })?;
 
     // Admin audit through the chokepoint (one audit point).

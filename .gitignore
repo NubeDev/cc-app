@@ -26,3 +26,21 @@
 **/.DS_Store
 **/.idea/
 **/.vscode/
+
+# --- Node modules (pinned on disk; rebuilt from package.json via pnpm/npm) -
+# `cargo build` / `cargo test` don't read this; the UI dev server installs
+# on demand via `make setup` (pnpm install in ui/ + rust/extensions/care/ui/).
+**/node_modules/
+/ui/node_modules
+/rust/extensions/care/ui/node_modules
+
+# --- Stray `cargo` artifact dirs -------------------------------------------
+# A typo'd invocation (`cargo build -p care/file` instead of `cargo build -p
+# care`) sometimes drops a `file/` directory under the affected crate with
+# a `tmp/` subdir (cargo's incremental-compilation scratch space). Same
+# posture as `**/target/`: never committed.
+**/file/tmp/
+/rust/extensions/care/file/
+# Playwright E2E artifacts (ui/)
+ui/test-results/
+ui/playwright-report/

@@ -134,6 +134,26 @@ pub async fn resolve_era1_staff_rooms(cp: &Chokepoint, principal: &Principal) ->
         .collect()
 }
 
+/// Canonicalise a guardian subject to the **auth-subject** form the reach path
+/// keys on. A guardian's token `sub` is `user:<x>` (the gateway mints it that
+/// way; the era-1 edge read uses `principal.sub()`, and the era-2 grant subject
+/// must parse as `Subject::User` — a bare id is rejected by lb's `Subject::parse`
+/// and the `grants.assign` denies). A caller (the seed, the admin UI) may pass a
+/// bare guardian id (`ana`) OR the already-prefixed form (`user:ana`); both
+/// normalise to `user:ana`, so the edge id, the era-1 lookup, and the era-2
+/// grant subject all address the SAME identity. Idempotent on an already-prefixed
+/// subject. One owner of this rule (a drift = a lockout or a leak).
+pub fn canonical_subject(guardian_sub: &str) -> String {
+    if guardian_sub.starts_with("user:")
+        || guardian_sub.starts_with("team:")
+        || guardian_sub.starts_with("key:")
+    {
+        guardian_sub.to_string()
+    } else {
+        format!("user:{guardian_sub}")
+    }
+}
+
 /// The deterministic edge id (so the matrix harness can seed it directly).
 pub fn edge_id(guardian_sub: &str, child_id: &str) -> String {
     // Same shape as the durable `guardianship` edge id (the link verb in

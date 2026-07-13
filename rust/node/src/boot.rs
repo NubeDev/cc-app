@@ -22,7 +22,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use lb_node::{BootConfig, GatewayMode, RunningNode, SigningKey};
+use lb_node::{BootConfig, CredentialMode, GatewayMode, RunningNode, SigningKey};
 
 /// The cc-app repo dir — the anchor for all local on-disk state (`.cc-app/`). Every path we hand
 /// lb is absolute and anchored HERE, never cwd-relative, so `cargo run` from any directory (and a
@@ -129,15 +129,61 @@ pub fn boot_config() -> anyhow::Result<BootConfig> {
     cfg.gateway = GatewayMode::Addr(gateway_addr()?);
     cfg.reactors = true;
     cfg.hello_demo = false;
+    cfg.credential_mode = credential_mode();
     if let Ok(user) = std::env::var("CC_SEED_USER") {
         cfg.seed_user = if user.is_empty() { None } else { Some(user) };
     }
+    // Seed the dev admin's login credential so a `PasswordHash` node (CC_PASSWORD_LOGIN=1) has a
+    // first admin who can log in — otherwise `ada` has no credential and every login 401s (the
+    // bootstrap paradox). Read from `CC_SEED_PASSWORD` at the binary boundary; empty/unset ⇒ no
+    // credential seeded (correct for the password-less `DevTrustAny` default). Secret-class.
+    cfg.seed_credential = std::env::var("CC_SEED_PASSWORD")
+        .ok()
+        .filter(|s| !s.is_empty());
     if let Ok(ws) = std::env::var("CC_WORKSPACE") {
         if !ws.is_empty() {
             cfg.workspace = ws;
         }
     }
     Ok(cfg)
+}
+
+/// Which login credential check the gateway runs, read at the binary boundary from
+/// `CC_PASSWORD_LOGIN` (rule 5 — env is a binary concern, mapped here into `BootConfig`).
+///
+/// Default is **password-less** (`DevTrustAny`): the dev bootstrap handle (`CC_SEED_USER`,
+/// `user:ada`) has no credential record, so it can only sign in when passwords aren't checked —
+/// this keeps `make dev` + the dev-handle e2e ergonomic. Set `CC_PASSWORD_LOGIN=1` (the
+/// `email-login` demo + any real deployment) to select `PasswordHash`: `POST /login` then argon2s
+/// the credential a person set at invite-accept, and a wrong/absent secret 401s. Under that mode the
+/// dev handle can no longer log in password-less — provision a credential for it, or use an
+/// accepted email account (embedder-credential-mode scope, the "absent credential locks out" note).
+fn credential_mode() -> CredentialMode {
+    match std::env::var("CC_PASSWORD_LOGIN") {
+        Ok(v) if !v.trim().is_empty() => CredentialMode::PasswordHash,
+        _ => CredentialMode::DevTrustAny,
+    }
+}
+
+/// The workspace cc-node boots into (and installs the care sidecar in). Read
+/// from `CC_WORKSPACE` at the binary boundary, defaulting to lb's `acme` — the
+/// SAME value `boot_config()` stamps onto `BootConfig::workspace`, so the
+/// install lands in the workspace the node actually serves.
+pub fn workspace() -> String {
+    std::env::var("CC_WORKSPACE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "acme".into())
+}
+
+/// The gateway URL a spawned sidecar POSTs its host-callbacks to. Read from
+/// `CC_GATEWAY_URL` at the binary boundary; this is what `care_mount` mirrors
+/// into `LB_GATEWAY_URL` so the care child gets a callback address (Part B).
+/// `None` ⇒ no callback address (the sidecar's record I/O would fail cleanly).
+pub fn gateway_url() -> Option<String> {
+    std::env::var("CC_GATEWAY_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 /// Boot a cc-node through lb's embed seam and hand back the [`RunningNode`]. The caller serves it.

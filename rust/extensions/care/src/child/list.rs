@@ -10,7 +10,6 @@
 //! sees an archived child); admin sees them (the audit trail).
 
 use lb_auth::Principal;
-use lb_store::read;
 
 use crate::authz::{reachable_children, Chokepoint};
 use crate::child::Child;
@@ -47,7 +46,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
 /// Read one child record by its reach/record id, deserialized. `None` if
 /// absent (a reached id whose record was archived-out or never created).
 async fn read_child(cp: &Chokepoint, id: &str) -> Result<Option<Child>, String> {
-    let value = read(&cp.store, &cp.ws, "child", id)
+    let value = cp
+        .records()
+        .read("child", id)
         .await
         .map_err(|e| format!("store denied the child read: {e}"))?;
     match value {
@@ -61,13 +62,11 @@ async fn read_child(cp: &Chokepoint, id: &str) -> Result<Option<Child>, String> 
 /// Every child in the workspace (admin path). `SELECT data` deserializes each
 /// row's record envelope — the same shape the store's `list` helper uses.
 async fn all_children(cp: &Chokepoint) -> Result<Vec<Child>, String> {
-    let mut resp = cp
-        .store
-        .query_ws(&cp.ws, "SELECT data FROM child", vec![])
+    let data_rows: Vec<serde_json::Value> = cp
+        .records()
+        .query_data("child")
         .await
         .map_err(|e| format!("store denied the child list: {e}"))?;
-    let data_rows: Vec<serde_json::Value> =
-        resp.take::<Vec<serde_json::Value>>((0, "data")).unwrap_or_default();
     let mut out = Vec::new();
     for row in data_rows {
         if let Ok(c) = serde_json::from_value::<Child>(row) {
@@ -129,7 +128,9 @@ mod tests {
         child_create::run(&cp, &a, r#"{"id":"mia","name":"Mia","dob":"2020-06-01"}"#)
             .await
             .unwrap();
-        child_archive::run(&cp, &a, r#"{"id":"mia"}"#).await.unwrap();
+        child_archive::run(&cp, &a, r#"{"id":"mia"}"#)
+            .await
+            .unwrap();
 
         let out = run(&cp, &a, "").await.unwrap();
         let v: Vec<serde_json::Value> = serde_json::from_str(&out).unwrap();

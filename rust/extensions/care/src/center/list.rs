@@ -36,19 +36,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
     // Admin path: list every center row, schema-stable SurrealQL.
     // Filtering `archived` is left to the caller (admin sees both; the
     // UI can hide them).
-    let mut resp = cp
-        .store
-        .query_ws(&cp.ws, "SELECT * FROM center", vec![])
+    let data_rows: Vec<serde_json::Value> = cp
+        .records()
+        .query_data("center")
         .await
         .map_err(|e| format!("store denied the center list: {e}"))?;
-
-    // `SELECT *` returns each row as `{"data": <our record>, "id": <thing>}`.
-    // Take by field name ("data") so the surrealdb Row deserializer knows
-    // what shape to expect — `Vec<serde_json::Value>` with a `(usize, &str)`
-    // index (the documented `QueryResult` impl in `surrealdb::opt`).
-    let data_rows: Vec<serde_json::Value> = resp
-        .take::<Vec<serde_json::Value>>((0, "data"))
-        .unwrap_or_default();
     let mut out: Vec<Center> = Vec::new();
     for row in data_rows {
         if let Ok(c) = serde_json::from_value::<Center>(row) {

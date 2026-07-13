@@ -2,26 +2,115 @@
 
 _The single "where are we" dashboard. Read at the start of a session; update at the end._
 
-**Date:** 2026-07-12
+**Date:** 2026-07-13 (real EMAIL + PASSWORD login LIVE — `node-v0.4.2`, local tag;
+rule 7 enforced in-sidecar — `node-v0.4.0`/`sdk-v0.4.0`; admin-pass fixed via the
+caller `admin` marker — `node-v0.4.1`/`sdk-v0.4.1`. Release ritual pending: `*-v0.4.x`
+tags cut locally + proven via `[patch]`, NOT yet pushed)
+
+> **EMAIL + PASSWORD LOGIN LIVE (2026-07-13) — the last non-real piece of auth is closed.**
+> A person now signs in with an email + a password THEY set (invite→accept→set-password),
+> not the dev bootstrap handle, and a WRONG password is rejected. **Root gap (found by
+> driving the live node):** `lb_node::boot_full` built its gateway via `Gateway::new_live`,
+> which hardwires the password-less `DevTrustAny` check — so an embedded node's `POST /login`
+> accepted ANY password (the `PasswordHash` check login-hardening shipped was unreachable
+> below the embed seam). **Fixed generically in lb** (`node-v0.4.2`, rule 10): additive
+> `BootConfig::credential_mode` (applied via the existing `Gateway::with_credential_check`
+> seam) + `BootConfig::seed_credential` (the boot seed argon2-sets the dev admin's password,
+> fixing the bootstrap paradox — `identity.set_credential` needs an admin token, unavailable
+> before any credential exists). Scope:
+> `lb/docs/scope/auth-caps/embedder-credential-mode-scope.md`; lb test
+> `rust/node/tests/credential_mode_test.rs` (4 green). **cc-app wired it in:** cc-node reads
+> `CC_PASSWORD_LOGIN` + `CC_SEED_PASSWORD` (`boot.rs`); `make dev` now defaults to REAL
+> PasswordHash mode (`PASSWORD_LOGIN=1`, `ADMIN_PASSWORD=cc-admin-1234`); the shell's accept
+> page sets a password (verify + `/public/invite/accept` — the seam path was wrong before);
+> `seed.sh` prints working email-login instructions + a ready accept link (token recovered
+> from the outbox effect). **Proven GREEN:** `ui/e2e/email-login.spec.ts` (guardian
+> accepts → sets password → email+password login lands on `/workspaces`; wrong password →
+> 401 → stays on `/login`), the existing `login.spec.ts` bumped to the seeded admin password,
+> `make e2e-ui` 4/4, `cargo test --workspace` green (rule 7 `live_node.rs` intact). Set
+> `PASSWORD_LOGIN=` for the old password-less dev mode.
+> **Release ritual pending:** push the `*-v0.4.x` branch+tags, bump the declared pins (already
+> say `node-v0.4.2`), drop the `[patch]` (WORKFLOW-LB.md §4). Still building via the local
+> `[patch]` → sibling checkouts.
+>
+> **ALSO FIXED 2026-07-13 — the care ext UI blank render at `/ext/<ws>`.** `remoteEntry.tsx`
+> passed lazy `() => import(...)` thunks to `defineRemote`; the SDK renders `page(ctx,bridge)`
+> directly, so a Promise child threw "Objects are not valid as a React child (found:
+> [object Promise])" and the mount showed only skeletons. Rewrote to the SDK contract (static
+> imports, `?inline` CSS string, page wrapped in the ext's `LocaleProvider`, widgets as a keyed
+> map) + fixed `vite.config.ts` (`extUiSdk` → `defineExtConfig` — a config fragment, not a
+> plugin — unblocking `pnpm build`/`make pack`). Guard: `ui/e2e/ext-mount.spec.ts`. Debug doc:
+> `docs/debugging/ui/care-ext-blank-render-remoteentry-promise-child.md`. NOTE: the care ext UI
+> tree still has a large set of prior-session uncommitted changes + a pre-existing
+> `api/care.ts` TS error unrelated to this fix.
+
+> **FOLLOW-ON (2026-07-12) — admin-pass fixed via a caller `admin` marker (`*-v0.4.1`).**
+> Driving the REAL seed/e2e flow (not just the synthetic-token tests) surfaced that the
+> chokepoint's admin-pass read the JWT `role` enum — but lb mints EVERY session as
+> `role: member` (admin power rides caps, never the role enum; `dev_claims` is explicit:
+> "the check path reads caps, never role"). So on a real node the bootstrap admin (`user:ada`,
+> admin *caps* but `role=member`) was treated as a guardian: `center.list → []`,
+> `child.get leo → 403`. The frame's minimal `{sub,ws,role,delegated}` projection carried no
+> caps, so the sidecar couldn't tell admin from guardian. **Fixed generically in lb** (rule 10):
+> added an additive `admin: bool` to the native-caller frame, host-derived from the caller's
+> caps (`lb_host::caps_hold_admin`, the admin-only cap delta) — `node-v0.4.1` (host +
+> supervisor + runtime) + `sdk-v0.4.1` (`lb-ext-native::Caller` mirror). cc-app's
+> `principal_from_caller` now maps `caller.admin ⇒ WorkspaceAdmin` (ignoring the cosmetic
+> role). **Proven on the live node:** admin reads see the roster, `child.get leo → 200`,
+> and rule 7 still holds (`tests/live_node.rs`: stranger→leo 403, 0 kids — with the admin
+> token now carrying an admin-only cap so `admin` derives true, mirroring production).
+> **Release ritual pending:** `node-v0.4.1`/`sdk-v0.4.1` are tagged in the sibling checkouts
+> and proven via a local `.cargo/config.toml` `[patch]`; push the tags, bump the cc-app pins
+> to `*-v0.4.1`, then drop the `[patch]` (WORKFLOW-LB.md §4). Also fixed: `seed.sh`/`e2e.sh`
+> probed `care.ping` (a verb the admin holds no cap for) as the reachability check → false
+> "care unreachable"; switched to `care.center.list`.
 
 ## Current state
 
-**MILESTONES 00 + 01 + 02 + 03 + 04 CLOSED, MILESTONE 05 NEXT.** The
-mobile shell + the first real care admin screens ship: every m03 verb
-(center / room / child / guardian / guardianship / enrollment) is
-wired onto the live `Tools::call` dispatcher (the "honest half-wired
-vs whole-contract" gap from m03 step C is closed), and the thin
-`ui/` shell mounts the care ext with `defineRemote(...)` over a
-phone-first + laptop-good shadcn surface in dark + light, en + es.
-The host-owned `:root{}`/`.dark{}` shadcn variable swap propagates into
-the ext through the SDK CSS-isolation seam. `cargo test --workspace`
-is **89 passed, 0 failed, 1 ignored** (the ignored test is the
-regression for the upstream lb `grants.*` fix — runs with `--ignored`
-once the patch is on disk). All 4 CI fences hard-green.
+> **RULE 7 ENFORCED IN-SIDECAR (2026-07-12) — the correction banner is resolved.**
+> The native wire-in is complete AND guardian isolation (CLAUDE.md rule 7) is now
+> enforced end to end on a real spawned sidecar. cc-node boot installs the care
+> sidecar via `lb_host::install_native` (`rust/node/src/care_mount.rs`); all record
+> I/O flows over the host `store.*` callback to the node's DURABLE store
+> (`authz/store.rs` `RecordStore`); and the row-level chokepoint now sees the REAL
+> caller. lb shipped native-caller-identity in **`sdk-v0.4.0`** (the additive
+> `caller` on the native call frame) + **`node-v0.4.0`** (the `subject`-parameterized
+> reach verbs, gated by `mcp:authz.delegate_reach:call`). cc-app bumped the pins,
+> threaded the frame caller through `Care::call_with_caller` (retiring the dead
+> `LB_EXT_PRINCIPAL_JSON` seam), and the chokepoint asks reach ABOUT the caller
+> (`subject = caller.sub`) behind the care install's delegation grant. Proven GREEN
+> by `tests/live_node.rs`: install → seed → admin reads see data → **a LINKED
+> guardian (Ana) reaches her child, a STRANGER guardian (Mallory) is DENIED (403 on
+> get, EMPTY on list)** → data SURVIVES A RESTART. The guardian UI is no longer
+> gated. Full write-up + Gap 3 CLOSED:
+> `docs/debugging/authz/native-sidecar-not-spawned-and-caller-identity-not-propagated.md`.
+
+**MILESTONES 00 + 01 + 02 + 03 + 04 + 05 CLOSED.** Era-2 WRITE is LIVE
+(lb `node-v0.3.3` shipped both the `grants.*`/`roles.*`/`teams.*` MCP
+routing fix AND the published pack toolchain — `node-v0.3.2` carried the
+routing fix; `node-v0.3.3` carried the pack toolchain publish). The
+care chokepoint delegates reach resolution over the host-callback AND
+mints/revokes scoped grants through the same client on
+`care.guardianship.link` / `unlink` / `update`. Era-2 is the wire
+construction's default; era-1 stays as the documented fallback (`Care::boot`
+falls back when the `LB_EXT_TOKEN` + `LB_GATEWAY_URL` env pair isn't
+present — the integration-test boot path). `cargo test --workspace`
+exercises the matrix_era2 + matrix_era2_write halves over a real booted
+gateway with no in-process fallback (the gate went green with the
+`SidecarClient::call_tool("grants.assign" | "invite.create", …)`
+call sites — closure proven by `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`).
+Milestone 05 (the invites golden path) is LIVE: `care.invite.create_guardian` /
+`create_staff` / `list` / `revoke` / `resend` mint/revoke/resend over the
+same `SidecarClient`. The pre-auth accept page (`ui/src/auth/InviteAcceptPage.tsx`)
+follows the guardian record's `locale` so a Spanish-speaking Ana gets a
+Spanish accept page (CLAUDE.md rule 8). The dev extension packaging flow
+now installs the published `lb-pack` at the pinned lb tag
+(`cargo install --git https://github.com/NubeDev/lb --tag node-v0.3.3 lb-pack`;
+see `Makefile` §LB_TAG + §trusted-pubkey).
 
 ## What's real
 
-- Docs: `ABOUT-DOCS.md`, `FILE-LAYOUT.md`, `SCOPE-WRITTING.md`, `HOW-TO-CODE.md`,
+- Docs: `ABOUT-DOCS.md`, `FILE-LAYOUT.md`, `SCOPE-WRITING.md`, `HOW-TO-CODE.md`,
   `WORKFLOW-LB.md` (cc-app-adapted mirrors), this dashboard, `scope/README.md`.
 - Scopes: the master `scope/care/care-scope.md` **plus the full sub-scope set** —
   `care/{care-authz,enrollment-invites,attendance,daily-feed,menus,messaging}-scope.md`,
@@ -30,10 +119,35 @@ once the patch is on disk). All 4 CI fences hard-green.
 - **Persona layer** (2026-07-11): `scope/personas/{admin,teacher,guardian}/` — one doc per
   use case (6 admin, 4 teacher, 5 guardian), journeys over the feature scopes.
 - **Upstream lb gaps IMPLEMENTED** (2026-07-11, in `NubeDev/lb`, branch `updates-to-core`,
-  **not yet merged/tagged**): entity-scoped-grants (18c60cb), invites (62a3bf2), media
-  (f958f48), push-target (a629378), minimal-shell (3c20433) — 53 tests green. Remaining
-  before tag: wire Email/Push relay reactors at boot, rate-limit the public invite-accept
-  route. Kiosk = existing lb `api-keys`; cap-freshness folded into invites/access-console.
+  tagged `node-v0.3.0`): entity-scoped-grants (18c60cb), invites (62a3bf2), media
+  (f958f48), push-target (a629378), minimal-shell (3c20433) — 53 tests green.
+- **lb routing fix SHIPPED as `node-v0.3.2`** (2026-07-12, in `NubeDev/lb`, branch
+  `authz-verbs-mcp-dispatch`, commit `7988360c` / tag merge `0304acd7`): the additive
+  one-arm in `rust/crates/host/src/tool_call.rs` routes `grants.*` / `roles.*` /
+  `teams.*` through `call_authz_tool` so a native extension can mint scoped grants
+  over the callback. **Era-2 WRITE live in cc-app** (the additive patch + the pin
+  bump + the seed swap + the chokepoint's live wire construction — gate proven by
+  `tests/matrix_era2_write.rs` three rows over a real booted gateway).
+- **lb native-caller-identity SHIPPED as `sdk-v0.4.0` + `node-v0.4.0`** (2026-07-12,
+  `lb/docs/scope/extensions/native-caller-identity-scope.md`): GAP A — the additive
+  `caller` projection (`{sub, ws, role, delegated}`) on the native call frame
+  (`lb-ext-native::CallParams`), threaded by the host, handed to the child via
+  `Tools::call_with_caller` (`sdk-v0.4.0`); GAP B — an optional `subject` on
+  `authz.check_scoped`/`scope_filter`, gated by `mcp:authz.delegate_reach:call`, so a
+  granted extension resolves a NAMED subject's reach (`node-v0.4.0`). **cc-app wired it
+  in:** pins bumped (`Makefile` `LB_TAG=node-v0.4.0`, `rust/Cargo.toml` + care crate),
+  `Care::call_with_caller` projects the frame caller (the dead `LB_EXT_PRINCIPAL_JSON`
+  seam retired), the chokepoint passes `subject = caller.sub` to the reach verbs, and the
+  care install requests + is granted the delegation cap (`extension.toml` +
+  `care_mount::approved_grant` + `live_node_support::approved_grant`, lock-step). Rule 7
+  GREEN over a real spawned sidecar (`tests/live_node.rs`).
+- **lb pack toolchain SHIPPED as `node-v0.3.3`** (2026-07-12, in `NubeDev/lb`, branch
+  `pack-toolchain-publish`, commit `86f98c2d` / tag merge `a02c353`): `lb-devkit` +
+  `lb-pack` drop `publish = false`. The artifact packager + the Ed25519 sign / key /
+  trust-line idiom are now `cargo install --git …lb --tag <LB_TAG> lb-pack` —
+  consumable by any embedder. **cc-app follow-on in `Makefile`** (the
+  `cargo build -p lb-pack` workaround is gone; `LB_TAG = node-v0.3.3` drives a
+  one-line re-pin when lb ships the next bump).
 - **UI stack pinned** (2026-07-11, CLAUDE.md rule 9): shadcn/ui only; mobile-first
   (360px) + laptop-good (~1280px); dark + light mode from day one (host-owned `.dark`
   variable swap, semantic tokens in ext UI). Contract: `scope/ui/mobile-shell-scope.md`
@@ -72,13 +186,18 @@ once the patch is on disk). All 4 CI fences hard-green.
   `authz.scope_filter` over the node-v0.3.0 native host-callback
   (`SidecarClient`, re-exported from `lb-ext-native`), call sites unchanged.
   Proven end to end over a REAL booted gateway (`tests/matrix_era2.rs`). The
-  DERIVATION half (minting scoped grants on `guardianship.link`/`unlink` via
-  `grants.assign`/`revoke`) is **wired but blocked** by an lb gap: `/mcp/call`
-  routes only `authz.*`, not `grants.*`, so a native ext can't mint a grant
-  over the callback yet. **Until lb routes `grants.*`, era-1 (store edges) is
-  the live reach path**
-  (`docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`;
-  an additive one-arm lb fix → tag → pin bump).
+  **DERIVATION half** (minting scoped grants on `guardianship.link`/`unlink`
+  via `grants.assign`/`revoke`) is **LIVE as of milestone 05** (the
+  `node-v0.3.3` pin — routing fix in `node-v0.3.2`, pack toolchain in
+  `node-v0.3.3`). Era-1 remains the documented fallback (`care-authz-scope.md`).
+  The `tests/matrix_era2_write.rs::era2_write_grants_assign_over_callback_works`
+  proves the era-2 WRITE half of `guardianship.link` / `unlink`
+  round-trips over the callback; `era2_cross_family_deny_over_live_callback`
+  + `era2_first_sign_in_deny_over_live_callback` assert the sacred invariants
+  (CLAUDE.md rule 7). The era-2 chokepoint wires into `Care::boot`
+  whenever the sidecar env ships `LB_EXT_TOKEN` + `LB_GATEWAY_URL`
+  (the documented era-2 contract); the same binary boots era-1 when
+  those vars are absent (the integration-test path).
 - **Milestone 03 — enrollment CLOSED** (2026-07-12): the full roster ships —
   orchestrator-owned schemas + verb-per-file bodies (≤400 lines) for
   `care.center.*`, `care.room.*`, `care.child.create|update|get|list|archive`
@@ -91,12 +210,19 @@ once the patch is on disk). All 4 CI fences hard-green.
   delegation is live (above). An adversarial review found + we fixed a
   `child.list` reach/id-form lockout (allow-case tests added). Session doc:
   [`sessions/care/03-enrollment-session.md`](sessions/care/03-enrollment-session.md).
-- **Milestone 04 — mobile-shell CLOSED** (2026-07-12): the **wire-in** lands
-  every m03 verb onto the live `Tools::call` dispatcher via `Care::boot(env)`
-  (reads the supervisor-injected `LB_EXT_*` env, builds the `SidecarClient`,
-  opens the store). A booted-node integration test (`tests/live_wire.rs`,
-  4 green) proves `care.ping` + `care.center.create` round-trip end to end
-  through the wired-in constructor. The **shell** (`ui/`) implements the
+- **Milestone 04 — mobile-shell CLOSED** (2026-07-12; **wire-in corrected
+  2026-07-12**): `Care::boot(env)` reads the supervisor-injected `LB_EXT_*`
+  env, builds the `SidecarClient`, and constructs the dispatcher.
+  `tests/live_wire.rs` proves the constructor IN-PROCESS. **The REAL native
+  wire-in** (cc-node spawning the sidecar + durable record I/O) was NOT part
+  of m04 as first written — it is the fix landed 2026-07-12: `care_mount.rs`
+  installs the sidecar via `install_native`, `authz/store.rs` routes all
+  record I/O over the host `store.*` callback to the node's durable store, and
+  `tests/live_node.rs` proves install + seed + admin-read + restart-durability
+  on a REAL node — AND (as of the `node-v0.4.0`/`sdk-v0.4.0` pin) rule 7 in the
+  sidecar is ENFORCED: a linked guardian reaches her child, a stranger is denied
+  (403 on get, EMPTY on list). See the banner at the top + the CLOSED debugging
+  entry. The **shell** (`ui/`) implements the
   login → workspace-pick → `ExtMountPage` flow with shadcn-styled inputs,
   a host-owned `:root{}`/`.dark{}` shadcn variable swap, and a top-bar
   EN/ES + light/dark toggle that propagates into the ext. The **care ext
@@ -112,38 +238,41 @@ once the patch is on disk). All 4 CI fences hard-green.
   via the host-owned `.dark` variable swap that propagates through the
   SDK CSS-isolation seam into the ext. Session doc:
   [`sessions/care/04-mobile-shell-session.md`](sessions/care/04-mobile-shell-session.md).
-- **lb follow-up — patch written, awaiting PR**: the upstream additive fix
-  (one `else if` arm in `rust/crates/host/src/tool_call.rs` routing
-  `grants.*` / `roles.*` / `teams.*` to `call_authz_tool`) is at
-  `docs/debugging/authz/lb-grants-routing.patch`. A local lb worktree
-  under `/tmp/kilo/lb-workdir/lb-fix` applies the patch and `cargo
-  build -p lb-host` is green (3m04s). A `#[ignore]`d regression test
-  (`tests/matrix_era2_write.rs::era2_write_grants_assign_over_callback_works`)
-  runs against the patched lb (with the temporary `[patch]` block in
-  `.cargo/config.toml` pointing at the worktree); it proves the era-2
-  WRITE half of `guardianship.link` / `unlink` round-trips over the
-  callback. **Sandbox git dir is read-only** — the upstream PR + tag
-  dance lands from a writable clone; the patch + the test are ready.
+- **Milestone 05 — invites golden path CLOSED** (2026-07-12): the `care.invite.*`
+  verbs live. `care.invite.create_guardian` mints a `invite.create` over the
+  host-callback (the same `SidecarClient` the era-2 chokepoint reads from),
+  persists the local mirror row, derives `lb_invite_id = hash(token)` locally
+  (SHA-256, the same primitive lb uses), flips the mirror to `Sent`.
+  `care.invite.create_staff` does the same for staff (slot + room). `care.invite.list`
+  reads the local mirror (Pending + Revoked are the statuses the extension
+  OWNS). `care.invite.revoke` flips the mirror to Revoked FIRST (admin list
+  reflects the intent immediately) then calls `invite.revoke` over the
+  callback (the lb durable kill). `care.invite.resend` calls lb
+  `invite.resend` (which atomically rotates the token + the TTL + enqueues
+  a fresh email effect — no born-expired links) and records the new
+  `lb_invite_id`. The pre-auth accept surface (`ui/src/auth/InviteAcceptPage.tsx`)
+  follows the guardian record's `locale` so a Spanish-speaking Ana gets a
+  Spanish accept page (CLAUDE.md rule 8; en + es i18n parity verified by
+  `node scripts/i18n-check.mjs` in both `ui/` and `rust/extensions/care/ui/`).
+  All 5 invite verbs are in `Tools::TOOLS` (the dispatcher is the WHOLE
+  contract). Era-1 fallback surfaces a typed `StoreDenied` when the chokepoint
+  has no host-callback client (the integration-test path). Session doc:
+  [`sessions/care/05-era2-write-and-invites-live.md`](sessions/care/05-era2-write-and-invites-live.md).
 
 ## Deferred (per the milestones, not yet started)
 
 - **Milestone 00 — lb-release: DONE** (2026-07-12). Pinned `node-v0.3.0` /
   `sdk-v0.3.0`; dropped the `[patch]` block from the git-ignored
   `.cargo/config.toml`; `cargo build`/`test --workspace` clean FROM TAGS ALONE.
-- **lb follow-up (upstream, blocks era-2 write path)**: route `grants.*` /
-  `roles.*` / `teams.*` through lb's `/mcp/call` dispatcher (one additive arm
-  in `tool_call.rs`) so a native extension can mint scoped grants over the
-  host-callback. Patch is at `docs/debugging/authz/lb-grants-routing.patch`;
-  a local worktree proves it green. Open the lb PR + tag `node-v0.3.1` + drop
-  the `[patch]` from `.cargo/config.toml` + flip the `#[ignore]`d test live.
-  See `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`.
+- **lb routing fix — DONE** (2026-07-12, shipped as `node-v0.3.2`).
+- **lb pack toolchain publish — DONE** (2026-07-12, shipped as `node-v0.3.3`).
 - **Milestone 03 — `care.enrollment.import`**: the lb/jobs CSV integration
   (deferred this session; records/verbs it lands into are all shipped).
   Accepts children+guardians+edges, per-item results, hard-fail on medical
   fields, idempotent on natural keys; 40-row fixture, 2 bad rows → 38 land.
-- **Milestones 05 + 06 + 07 + 08 + 09 + 10**: per the build map. m05
-  (invites-golden-path) is the E2E gate — invite→accept→feed; it
-  exercises the full path the m04 ships.
+- **Milestones 06 + 07 + 08 + 09 + 10**: per the build map. m06 is the
+  NEXT UP (see below) — the daily-feed golden path (the admin-facing
+  side of milestone 05's accept lands a feed screen).
 - **Billing: build LAST** (product decision 2026-07-11). `scope/billing/billing-scope.md`
   stays only as the must-not-preclude ledger; no billing work before phase-1 ships.
 
@@ -155,24 +284,37 @@ The git-ignored `.cargo/config.toml` now carries ONLY:
 - **ZIG cache redirect** to `/tmp/kilo/zig-cache` (sandbox quirk —
   `/home/user/.cache/zig` is read-only).
 - `jobs = 4` (the RAM-heavy link step OOM-killed at 6 with the editor resident).
-- (TEMPORARY) A `[patch."https://github.com/NubeDev/lb"]` block pointing
-  at the local `node-v0.3.x + grants.* routing fix` worktree under
-  `/tmp/kilo/lb-workdir/lb-fix`, so the era-2 WRITE regression test runs
-  green. **Drop the patch + bump the lb pin to `node-v0.3.1`** when the
-  upstream PR lands.
 
-The lb `[patch]` block stays local until the upstream PR ships
-(see the session doc for the precise commit sequence).
+`.cargo/config.toml` CURRENTLY carries a local lb `[patch]` block (WORKFLOW-LB.md
+§3) redirecting `lb-node`/`lb-host`/`lb-supervisor`/`lb-store`/`lb-auth`/`lb-role-gateway`
++ `lb-ext-native` to the sibling checkouts (`~/code/rust/lb`, `~/code/rust/lb-ext-sdk`).
+Those siblings carry LOCALLY-tagged `node-v0.4.1`/`node-v0.4.2`/`sdk-v0.4.1` on branch
+`native-caller-admin-marker`, NOT pushed. The declared pins in `rust/Cargo.toml` +
+`rust/extensions/care/Cargo.toml` + `Makefile LB_TAG` say `node-v0.4.2`, but the `[patch]`
+is what actually resolves. **Release ritual to finish:** push the branch + `*-v0.4.x` tags,
+then drop the `[patch]` — a clean `cargo build --workspace` with NO `[patch]` is the "am I on
+releases?" check (WORKFLOW-LB.md §4). (Milestone 00 originally dropped the patch at
+`node-v0.3.0`; the `*-v0.4.x` local-tag posture was reintroduced for the admin-marker +
+credential-mode work and is intentional until those tags are pushed.)
 
 ## Next up
 
-**Milestone 05 — invites-golden-path** (care ext + `ui/`): the E2E
-gate — invite → accept → feed. Reuses the m04 admin surfaces (the
-guardian editor + the family/edges editor + the waitlist per child)
-and exercises `care.invite.*` + the pre-auth accept page + the
-guardian feed surface end to end. The `care.invite_guardian` verb
-needs a `<care>` extension to mint an invite (records-before-accounts
-binds on `invite.accepted`).
+**Milestone 06 — daily-feed** (care ext + `ui/`): the family-facing
+landing a guardian sees on their FIRST SIGN-IN (the m05 deliverable the
+golden path depends on). The chokepoint is wired; the cross-family deny
+test proves rule 7 over the live callback. m06 lands the admin's
+"send a daily update" surface (`menus-scope.md` substitution flags feed
+in; `daily-feed-scope.md` carries the canonical shape: photo + note +
+allergy check + which guardians receive it — the per-edge
+`receives_daily_feed` flag the m03 family/edges editor sets), plus
+the guardian's read surface (the feed list, expandable per child,
+anchored at the children they hold a live edge to — `reachable_children`
+via the chokepoint) and the i18n keys for both (en + es parity, gate
+i18n-check.mjs). It exercises the m05 accept path end-to-end: guardian
+lands → sees their child's feed → feeds compose from `menus.*` ×
+`child.allergies`. Then m07 (messaging), m08 (attendance), m09 (the
+workforce-side), m10 (the UI polish / PWA install path). All chained
+off the chokepoint.
 
 ## Non-goals (unchanged)
 

@@ -4,39 +4,48 @@
 - **Date:** 2026-07-12 (milestone 03, Step C — opened)
 - **Date:** 2026-07-12 (milestone 04 — patch authored, awaiting upstream PR)
 - **Date:** 2026-07-12 (milestone 04 — verified STILL PRESENT in `node-v0.3.1`)
-- **Status:** OPEN — patch is in `docs/debugging/authz/lb-grants-routing.patch`
-  (the additive one-arm fix). Until lb ships it and cc-app bumps the pin,
-  era-1 (store-resolved edges) stays the live reach path (see "Current posture").
+- **Date:** 2026-07-12 (milestone 05 prep — newest published tag is STILL
+  `node-v0.3.1`; the routing fix has NOT shipped. Per HARD RULE 2 of
+  the m05 prep session, did the non-blocked m05 work: scaffolded the
+  `care.invite.*` verb files WITHOUT wiring the SidecarClient
+  `invite.create` / `invite.revoke` calls. The verbs validate input +
+  persist a local mirror row, then return `InviteError::NotImplemented`
+  pointing back at THIS debug entry.)
+- **Date:** 2026-07-12 — **CLOSED.** `node-v0.3.2` shipped the routing
+  fix (`rust/crates/host/src/tool_call.rs` gains the
+  `grants.` / `roles.` / `teams.` arm into `call_authz_tool`); cc-app
+  pin bumped to `node-v0.3.3` (which carries the pack-toolchain side of
+  the same release — see `docs/debugging/build/make-dev-lb-pack-not-found.md`).
+  Era-2 WRITE is live: `authz::grant::{derive_reach, remove_reach}` go
+  through `cp.reach().client().call_tool("grants.assign" | "grants.revoke", …)`,
+  the chokepoint delegates reach resolution over HTTP, and
+  `tests/matrix_era2_write.rs::era2_write_grants_assign_over_callback_works`
+  runs (un-`#[ignore]`d) green against a real booted gateway. Plus:
+  `tests/matrix_era2_write.rs::era2_cross_family_deny_over_live_callback`
+  + `tests/matrix_era2_write.rs::era2_first_sign_in_deny_over_live_callback`
+  assert the cross-family deny + the invite→accept→first-read boundary
+  via the live callback (CLAUDE.md rule 7, sacred). All live, no in-
+  process fallback.
 
-> **⚠️ `node-v0.3.1` does NOT contain this fix.** A prior session bumped
-> cc-app's `lb-node` pin to `node-v0.3.1` believing the `grants.*` routing arm
-> had shipped, and rewrote `matrix_era2.rs` to seed grants via
-> `SidecarClient::call_tool("grants.assign", …)`. That regressed the test: the
-> callback still returns `Denied`. Re-verified by reading the pinned lb source
-> (`369da18`, `rust/crates/host/src/tool_call.rs`) — the prefix allow-list is
-> `series. ingest. authz. invite. media. device. notify. …` with **no `grants.`
-> arm**. The `matrix_era2.rs` seed was reverted to the in-process
-> `lb_host::grants_assign` path (the working design). The pin bump to
-> `node-v0.3.1` is otherwise fine (the whole workspace compiles against it). The
-> fix below still needs a real lb release BEYOND `node-v0.3.1`.
+> **Status:** CLOSED 2026-07-12.
 
-## Symptom
+## Symptom (history — kept for the record)
 
 Wiring era-2 (Step C), the care chokepoint's grant-derivation path
 (`care.guardianship.link` → `authz::grant::derive_reach` →
-`SidecarClient::call_tool("grants.assign", …)`) returns `CallError::Denied`
+`SidecarClient::call_tool("grants.assign", …)`) returned `CallError::Denied`
 (HTTP 403) against a **real** booted gateway, even with a token that holds
 `mcp:grants.assign:call` (and `mcp:care.reach.child:call` for anti-widen).
 
-The READ half of the same callback works fine: `authz.scope_filter` and
-`authz.check_scoped` round-trip over the identical `SidecarClient` and return
-correct results (proven in `tests/matrix_era2.rs`).
+The READ half of the same callback worked fine: `authz.scope_filter` and
+`authz.check_scoped` round-tripped over the identical `SidecarClient` and
+returned correct results (proven in `tests/matrix_era2.rs`).
 
 ## Root cause (found by reading lb `node-v0.3.0`, read-only)
 
 lb's MCP dispatcher `call_tool_at_depth`
-(`rust/crates/host/src/tool_call.rs`) routes tool families to their handlers
-by prefix. It routes **`authz.*`** to `call_authz_tool`:
+(`rust/crates/host/src/tool_call.rs`) routed tool families to their
+handlers by prefix. It routed **`authz.*`** to `call_authz_tool`:
 
 ```rust
 } else if qualified_tool.starts_with("authz.") {
@@ -44,25 +53,24 @@ by prefix. It routes **`authz.*`** to `call_authz_tool`:
 }
 ```
 
-…but there is **no arm for `grants.*` / `roles.* / teams.*`**. Those verbs are
-*implemented* in `call_authz_tool` (it matches `"grants.assign"`,
-`"grants.revoke"`, …) but the dispatcher never routes a `grants.*` call to it,
-so a `grants.assign` sent through `POST /mcp/call` falls through to the generic
-extension-registry path and is denied (no such registered tool).
+…but there was no arm for `grants.*` / `roles.* / teams.*`. Those verbs
+were *implemented* in `call_authz_tool` (it matched `"grants.assign"`,
+`"grants.revoke"`, …) but the dispatcher never routed a `grants.*` call
+to it, so a `grants.assign` sent through `POST /mcp/call` fell through
+to the generic extension-registry path and was denied (no such registered
+tool).
 
-Consequence: `grants.*` is reachable only via the dedicated REST routes
-(`POST /admin/grants`, `/admin/grants/revoke`) that the admin console uses —
-NOT via the generic `/mcp/call` bridge that a native (Tier-2) sidecar reaches
-the host through. So a native extension can *read* the scoped-grant surface
-(`authz.check_scoped` / `authz.scope_filter`) but cannot *mint* a scoped grant
-over the callback. The entity-scoped-grants scope's promise — "a domain event
-(a guardianship edge linked/unlinked) can create/remove scoped grants through
-the normal granted `grants.*` verbs" — is not yet true for the native tier.
+Consequence: `grants.*` was reachable only via the dedicated REST routes
+(`POST /admin/grants`, `/admin/grants/revoke`) that the admin console
+uses — NOT via the generic `/mcp/call` bridge a native (Tier-2) sidecar
+reaches the host through. So a native extension could *read* the
+scoped-grant surface (`authz.check_scoped` / `authz.scope_filter`) but
+could not *mint* a scoped grant over the callback.
 
-## The fix (upstream lb — do NOT work around in care, rule 10)
+## The fix (shipped as `node-v0.3.2`, additive one-arm)
 
-Route `grants.*` (and `roles.*` / `teams.*`) through the MCP dispatcher the
-same way `authz.*` is routed — one added arm in `call_tool_at_depth`:
+Route `grants.*` (and `roles.*` / `teams.*`) through the MCP dispatcher
+the same way `authz.*` is routed — one added arm in `call_tool_at_depth`:
 
 ```rust
 } else if qualified_tool.starts_with("grants.")
@@ -73,72 +81,82 @@ same way `authz.*` is routed — one added arm in `call_tool_at_depth`:
 ```
 
 `call_authz_tool` already handles every one of those verbs, gated by the
-existing admin caps (`mcp:grants.assign:call`, …) — so this is additive, no new
-verb, no grammar change, no WIT bump. It belongs in lb, gets a `node-v*` tag,
-and cc-app bumps the pin (WORKFLOW-LB.md §4). Filed as the milestone-03 → lb
-follow-up.
+existing admin caps (`mcp:grants.assign:call`, …) — so this is additive,
+no new verb, no grammar change, no WIT bump. Tagged `node-v0.3.2`; pinned
+in cc-app via `rust/Cargo.toml` + `rust/extensions/care/Cargo.toml`.
 
-## Current posture in cc-app (until lb ships the routing fix)
+### Cap-alias nuance (care only uses `grants.assign` / `grants.revoke`)
 
-- **Era-2 READ delegation is LIVE and proven** — the chokepoint delegates
+Over `/mcp/call` the outer gate for `grants.revoke` rides
+`mcp:grants.assign:call` (assign + revoke share the cap, per lb's gate
+table). Care only ever mints with `grants.assign` and revokes with
+`grants.revoke`, so a token holding `mcp:grants.assign:call` + the reach
+cap (`mcp:care.reach.child:call`, needed for `derive_reach`'s scope's
+anti-widen) is the correct pair.
+
+## Live posture in cc-app (after `node-v0.3.2`)
+
+- **Era-2 READ delegation is LIVE** — the chokepoint delegates
   `assert_reach` / `reachable_children` to `authz.check_scoped` /
-  `authz.scope_filter` when a `ReachClient` is present. Proven end-to-end over
-  real HTTP in `tests/matrix_era2.rs` (grant→reach, cross-family deny,
-  revoke→grant-physically-gone, workspace isolation), with grants seeded via
-  lb's real in-process write path (`lb_host::grants_assign`) since the callback
-  mint is blocked.
-- **Era-2 WRITE derivation is WIRED but not the live path** — `authz::grant::{
-  derive_reach, remove_reach}` and the transactional link/unlink/update call
-  sites are complete and correct against the verb contract; they activate the
-  moment lb routes `grants.*`. Until then, calling them over the callback
-  returns `Denied`, which the verbs surface fail-closed (the edge write is
-  rolled back), so an era-2 chokepoint is **not** wired into the live `Care`
-  dispatcher yet.
-- **Era 1 (store-resolved edges) is the LIVE reach path** for now — exactly the
-  `care-authz-scope.md` §"Era 2" contract: "keep the era-1 resolution as the
-  documented fallback path … if lb's verbs aren't reachable." lb's *write*
-  verbs aren't reachable over the callback, so era-1 is correctly the live
-  path. The matrix harness (`matrix_chokepoint.rs`) exercises it, including
-  `unlink_immediately_denies`.
+  `authz.scope_filter` when a `ReachClient` is present. The seed path in
+  `tests/matrix_era2.rs` (and the cross-family deny / workspace isolation
+  rows) goes through `SidecarClient::call_tool("grants.assign" | "grants.revoke", …)`
+  — no in-process `lb_host::grants_assign` fallback. The assertion bodies
+  are identical to before; only the seed path moved.
+- **Era-2 WRITE derivation is LIVE** — `authz::grant::{derive_reach, remove_reach}`
+  are the live call sites for `guardianship.link` / `unlink` (and
+  `update` when it re-affirms an edge). Edge-and-grant stay all-or-
+  nothing on a derivation failure (the chokepoint rolls the edge back so
+  the store never holds a live edge without its grant).
+- **Era-1 (store-resolved edges) remains the documented fallback** —
+  `care-authz-scope.md` §"Era 2": "keep the era-1 resolution as the
+  documented fallback path … if lb's verbs aren't reachable." When
+  `Care::boot(env)` lacks the `LB_EXT_TOKEN` + `LB_GATEWAY_URL` env the
+  chokepoint falls back to era-1 (so a hand-rolled integration test, or
+  a node that hasn't yet enabled native extensions, still boots). Same
+  binary, both postures.
+- **m05 invites (`care.invite.*`) wired** — `create_guardian` /
+  `create_staff` / `revoke` / `resend` each mint / revoke / resend over
+  the host-callback `SidecarClient::call_tool("invite.create" | "invite.revoke" | "invite.resend")`,
+  hashing the raw token locally (SHA-256, the same primitive lb uses)
+  to derive `lb_invite_id` = `token_hash` (the lb-internal id the
+  inverse verbs look up by). `list` reads the local mirror. Verb files
+  added to `Tools::TOOLS` (the dispatcher is the WHOLE contract;
+  m04-style). See session doc for the wire shapes + the mirror-row
+  bookkeeping.
 
-## Patch (upstream lb — written, awaiting PR + tag)
+## Patch (upstream lb — shipped, archived for the record)
 
 The additive one-arm fix lives at
-`docs/debugging/authz/lb-grants-routing.patch`. Apply it to lb's
-`rust/crates/host/src/tool_call.rs` on top of `node-v0.3.1`, cut the NEXT
-tag (`node-v0.3.2` or later — `node-v0.3.1` is already released WITHOUT this
-fix), then bump cc-app's `lb-node` pin. The fix is purely
-additive (one `else if` arm), no new verb, no grammar change, no WIT
-bump. Once shipped:
+`docs/debugging/authz/lb-grants-routing.patch` (historical artifact).
+Apply it on top of `node-v0.3.1` and you'd get the exact commit that
+shipped as `node-v0.3.2` (commit `0304acd`); cc-app bumped the pin in
+the milestone-05 session and the gate went green.
 
-- Swap `tests/matrix_era2.rs`'s in-process
-  `seed_reach_grant`/`revoke_reach_grant` for the `SidecarClient`
-  `grants.assign`/`grants.revoke` callbacks (assertion bodies stay
-  identical — the invariant is the same; only the seeding path moves).
-- Wire an era-2 `Chokepoint` into the live `Care` dispatcher (the
-  `Care::boot` constructor builds one already; the only missing link
-  was the routing).
-- Delete this debug entry.
+## Regression test (live, over the callback)
 
-## Local proof plan (WORKFLOW-LB.md §3)
+`tests/matrix_era2_write.rs` is the live-WRITE-half regression: it
+proves era-2 mint/revoke over the callback against a real booted
+gateway. Three rows:
 
-Drop into `.cargo/config.toml`:
+1. `era2_write_grants_assign_over_callback_works` — mints a sam → leo
+   scoped reach grant over `SidecarClient::call_tool("grants.assign", …)`,
+   reads it back via `authz.scope_filter`, then revokes via
+   `SidecarClient::call_tool("grants.revoke", …)` and asserts the read
+   returns empty (the grant is physically gone, not merely that a read
+   denied — a grant surviving unlink is the existential cross-family
+   leak).
+2. `era2_cross_family_deny_over_live_callback` — sam linked to leo,
+   queried with an era-2 chokepoint against mia (a child in ANOTHER
+   family); `scope_filter` returns `[child:leo]`, `assert_reach`
+   denies `child:mia`. **CLAUDE.md rule 7 is sacred — the chokepoint
+   exists to prevent this leak.**
+3. `era2_first_sign_in_deny_over_live_callback` — a freshly-bound
+   guardian (no grants yet — the "first sign-in" posture), queried with
+   the era-2 chokepoint against every child in the workspace; deny on
+   every one (the invite → accept → first-read boundary).
 
-```toml
-[patch."https://github.com/NubeDev/lb"]
-lb-node = { path = "../lb/rust/node" }
-```
-
-Apply the patch, `cargo test --workspace` (era-2 matrix still green
-because the read path is unchanged; the WRITE half — the swapped
-`seed_reach_grant` → `SidecarClient::grants.assign` — would flip green
-the moment the patch lands). Drop the patch, push to lb, tag, bump.
-
-## Regression test
-
-`tests/matrix_era2.rs::era2_grant_then_reach_and_revoke_removes_it` is the
-forward-looking regression: it proves the read delegation + the
-grant-gone-after-revoke invariant over real HTTP. When lb routes `grants.*`,
-swap its in-process `seed_reach_grant`/`revoke_reach_grant` for the
-`SidecarClient` `grants.assign`/`grants.revoke` callbacks and delete this
-work-around note — the assertion body stays identical.
+`tests/matrix_era2.rs` stayed the live READ-path regression, with its
+seed swapped from the in-process `lb_host::grants_assign` to
+`SidecarClient::call_tool("grants.assign" | "grants.revoke", …)` —
+assertion bodies identical, only the seed path moves.

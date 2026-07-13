@@ -2,7 +2,6 @@
 //! filtered to rooms they reach via `staff_assignment`).
 
 use lb_auth::Principal;
-use lb_store::read;
 
 use crate::authz::{assert_reach, reachable_rooms, Chokepoint};
 use crate::room::Room;
@@ -21,7 +20,9 @@ pub async fn get(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let row = read(&cp.store, &cp.ws, "room", &parsed.id)
+    let row = cp
+        .records()
+        .read("room", &parsed.id)
         .await
         .map_err(|_| "store denied the room read".to_string())?;
     let value = row.ok_or_else(|| "room not found".to_string())?;
@@ -44,7 +45,7 @@ pub async fn list(cp: &Chokepoint, principal: &Principal, _input: &str) -> Resul
         // returns an empty list; otherwise we read each room row.
         let mut out: Vec<Room> = Vec::new();
         for id in rooms {
-            if let Ok(Some(v)) = read(&cp.store, &cp.ws, "room", &id).await {
+            if let Ok(Some(v)) = cp.records().read("room", &id).await {
                 if let Ok(r) = serde_json::from_value::<Room>(v) {
                     out.push(r);
                 }
@@ -54,16 +55,11 @@ pub async fn list(cp: &Chokepoint, principal: &Principal, _input: &str) -> Resul
     }
 
     // Admin path: list every room.
-    let mut resp = cp
-        .store
-        .query_ws(&cp.ws, "SELECT * FROM room", vec![])
+    let data_rows: Vec<serde_json::Value> = cp
+        .records()
+        .query_data("room")
         .await
         .map_err(|e| format!("store denied: {e}"))?;
-    // Take by field name ("data") so the SurrealDB Row deserializer knows
-    // what shape to expect. See center/list.rs for the full rationale.
-    let data_rows: Vec<serde_json::Value> = resp
-        .take::<Vec<serde_json::Value>>((0, "data"))
-        .unwrap_or_default();
     let mut out: Vec<Room> = Vec::new();
     for row in data_rows {
         if let Ok(r) = serde_json::from_value::<Room>(row) {

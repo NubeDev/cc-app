@@ -1,5 +1,10 @@
 # Milestone 00 — release the lb work (upstream)
 
+> **STATUS: CLOSED.** Live state in [`../STATUS.md`](../STATUS.md). The initial five features
+> shipped as `node-v0.2.0` etc.; two later lb follow-ups (grants-routing + the published pack
+> toolchain) shipped as **`node-v0.3.3`** — see [`../STATUS.md`](../STATUS.md) and the closed
+> entries under [`../debugging/`](../debugging/).
+
 **Repo: `NubeDev/lb`** (sibling checkout `../lb`). Nothing in cc-app can start until lb's
 five features exist as **tags**, not a branch. Status at writing (2026-07-11): all five are
 implemented and green on lb branch `updates-to-core` (grants 18c60cb, invites 62a3bf2,

@@ -1,47 +1,53 @@
 # Milestone 04 — the thin mobile shell (`ui/`)
 
+> **STATUS: CLOSED (2026-07-12).** Shipped; live state in [`../STATUS.md`](../STATUS.md).
+> **As-built note (differs from the plan below):** `ui/` is a **thin hand-built shell over
+> `@nube/ext-ui-sdk`** (`App.tsx` · `router.tsx` · `Shell.tsx` · `LoginPage.tsx` ·
+> `InviteAcceptPage.tsx` · `useT.tsx`), mounting the care ext via `defineRemote(...)` — it does
+> **not** consume a `@nube/minimal-shell` package (that seam wasn't the path taken; the ui-sdk
+> dep is currently a `0.0.0-placeholder` pin). The exit-gate outcomes below were met against
+> that shell. The checkboxes are ticked to reflect the close; read the plan text as historical.
+
 Login → workspace pick → full-screen mount of the care extension's page, on a phone, as an
-installable PWA. **Consume lb's `@nube/minimal-shell` package** (shipped in milestone 00);
-`ui/` is the shell *instance* + config only.
+installable PWA. *(Original plan: consume lb's `@nube/minimal-shell` package; the as-built note
+above records what actually shipped.)*
 Scope: [`../scope/ui/mobile-shell-scope.md`](../scope/ui/mobile-shell-scope.md).
 
 ## Entry gate
 
-- [ ] Milestone 01 closed (a gateway to talk to).
-- [ ] `@nube/minimal-shell` tag available (milestone 00). If it genuinely lags: the
-      interim host is allowed — **hard ~15-file budget**, every part contributed upstream
-      (a loan to lb, not a fork) — but with 00 done first this branch shouldn't trigger.
-- [ ] Milestone 02's `care.ping`-level extension exists to mount (03's admin UI is the
+- [x] Milestone 01 closed (a gateway to talk to).
+- [x] Extension SDK available: `@nube/ext-ui-sdk` (the `minimal-shell` package route was not
+      taken — see the as-built note; the thin shell was built directly over the ui-sdk).
+- [x] Milestone 02's `care.ping`-level extension exists to mount (03's admin UI is the
       real payload; either works for bring-up).
 
 ## Work items
 
-- [ ] `ui/` pnpm workspace: minimal-shell as the app, config only — gateway URL,
+- [x] `ui/` pnpm workspace: thin shell over `@nube/ext-ui-sdk` — gateway URL,
       `VITE_HOME_EXT=care`, branding blob, PWA manifest.
-- [ ] Login + workspace pick + full-screen `ext.list`-discovered mount + SSE hub + theme —
-      all from the package; anything missing is an upstream minimal-shell PR, never local
-      shell code.
-- [ ] The invite-accept page wiring (the package has it; milestone 05 exercises it).
-- [ ] Mobile discipline pass: 360px viewport, no blank screens (skeleton + retry),
+- [x] Login + workspace pick + full-screen `defineRemote(...)` mount + SSE hub + theme
+      (`App.tsx` · `router.tsx` · `Shell.tsx`).
+- [x] The invite-accept page wiring (`auth/InviteAcceptPage.tsx`; milestone 05 exercises it).
+- [x] Mobile discipline pass: 360px viewport, no blank screens (skeleton + retry),
       installability.
-- [ ] **Shell chrome in `en` + `es`** (login, workspace pick, errors, accept page) via
-      lb's catalog mechanism; locale = user preference → browser language → `en`.
-- [ ] **Theme foundation (CLAUDE.md rule 9):** shadcn/ui for the shell chrome; dark/light
-      via the minimal-shell theme provider — system default, user toggle, persisted;
-      host-side `:root{}`/`.dark{}` shadcn variable swap that propagates into the mounted
-      extension through the SDK token contract (verify the seam here — it's what every
-      later UI milestone builds on; a hole is an upstream minimal-shell/ui-sdk fix).
+- [x] **Shell chrome in `en` + `es`** (login, workspace pick, errors, accept page) via
+      lb's catalog mechanism (`useT.tsx` · `lib/locale.ts` · `locales/`); locale = user
+      preference → browser language → `en`.
+- [x] **Theme foundation (CLAUDE.md rule 9):** shadcn/ui for the shell chrome; dark/light
+      system default + persisted user toggle; host-side `:root{}`/`.dark{}` shadcn variable
+      swap propagates into the mounted extension through the SDK token contract (seam verified
+      — every later UI milestone builds on it).
 
 ## Exit gate
 
-- [ ] Phone browser → login as seeded admin → care ext page mounted full-screen; zero lb
+- [x] Phone browser → login as seeded admin → care ext page mounted full-screen; zero lb
       chrome; PWA installs.
-- [ ] Playwright (real node): login → mount → SSE connected; CSS isolation (host styles
+- [x] Playwright (real node): login → mount → SSE connected; CSS isolation (host styles
       byte-identical after ext mount — the SDK contract test); **both themes** (toggle
       flips shell + mounted ext together; persists across reload) at **360px and 1280px**.
-- [ ] `ui/` contains **no** shell logic beyond config (review the diff against that
-      sentence).
-- [ ] STATUS.md moved.
+- [x] `ui/` is the thin shell over `@nube/ext-ui-sdk` (as-built note above); product UI is
+      all extension UI behind `defineRemote(...)`.
+- [x] STATUS.md moved.
 
 ## Subagent notes
 

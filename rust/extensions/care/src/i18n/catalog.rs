@@ -93,7 +93,11 @@ mod tests {
         let s = t(
             Locale::En,
             "guardian.linked",
-            &[("guardian", "Sam"), ("child", "Leo"), ("relationship", "father")],
+            &[
+                ("guardian", "Sam"),
+                ("child", "Leo"),
+                ("relationship", "father"),
+            ],
         );
         assert_eq!(s, "Sam linked to Leo as father.");
     }

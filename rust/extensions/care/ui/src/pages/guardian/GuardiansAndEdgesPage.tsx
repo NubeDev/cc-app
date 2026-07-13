@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
+import { Plus, Check, ChevronRight } from "lucide-react";
 import { useCareApi } from "../../api/care";
-import { PageTitle } from "../../components/PageTitle";
+import { LargeTitle } from "../../components/LargeTitle";
+import { Field } from "../../components/Field";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { Switch } from "../../components/ui/switch";
+import { Segmented } from "../../components/ui/segmented";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { useT } from "../../hooks/useT";
 
 export interface GuardianRow { id: string; name: string; email: string; phone?: string; locale?: string; sub?: string | null; }
@@ -22,7 +30,7 @@ export interface EdgeRow {
 
 const RELS = ["mother", "father", "grandparent", "guardian", "other"] as const;
 
-export function GuardiansListPage() {
+export function GuardiansListPage({ embedded }: { embedded?: boolean } = {}) {
   const t = useT();
   const api = useCareApi();
   const [guardians, setGuardians] = useState<GuardianRow[] | null>(null);
@@ -39,24 +47,33 @@ export function GuardiansListPage() {
   }
 
   return (
-    <main className="pb-24">
-      <PageTitle>{t("guardian.list.title")}</PageTitle>
-      <div className="px-4">
-        <button onClick={() => setCreating(true)} className="mb-4 w-full rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground">
-          + {t("guardian.editor.title.new")}
-        </button>
-        {!guardians?.length ? (
-          <p className="py-6 text-center text-sm opacity-60">{t("guardian.empty")}</p>
+    <main className={embedded ? "" : "pb-24"}>
+      {!embedded && <LargeTitle>{t("guardian.list.title")}</LargeTitle>}
+      <div className="px-4 pt-1">
+        <Button className="mb-4 w-full" onClick={() => setCreating(true)}>
+          <Plus /> {t("guardian.editor.title.new")}
+        </Button>
+        {guardians === null ? (
+          <ul className="space-y-2" aria-busy="true">
+            {[0, 1].map((i) => <li key={i} className="h-[70px] animate-pulse rounded-2xl bg-muted" />)}
+          </ul>
+        ) : !guardians.length ? (
+          <p className="py-16 text-center text-[15px] text-muted-foreground">{t("guardian.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {guardians.map((g) => (
               <li key={g.id}>
-                <button onClick={() => setEditing(g)} className="flex w-full items-start justify-between rounded-2xl border border-border bg-card p-4 text-left">
-                  <span>
-                    <span className="block text-base font-semibold">{g.name}</span>
-                    <span className="block text-xs opacity-60">{g.email}</span>
+                <button onClick={() => setEditing(g)} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-base font-semibold text-foreground">{g.name}</span>
+                    <span className="block truncate text-[13px] text-muted-foreground">{g.email}</span>
                   </span>
-                  {!g.sub && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">{t("guardian.invite_pending")}</span>}
+                  {!g.sub && (
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                      {t("guardian.invite_pending")}
+                    </span>
+                  )}
+                  <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
                 </button>
               </li>
             ))}
@@ -73,46 +90,49 @@ function GuardianEditor({ initial, onDone }: { initial: GuardianRow | null; onDo
   const [name, setName] = useState(initial?.name ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
-  const [locale, setLocale] = useState(initial?.locale ?? "en");
+  const [locale, setLocale] = useState<"en" | "es">((initial?.locale as "en" | "es") ?? "en");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function save() {
     setBusy(true); setErr(null);
     try {
-      const id = initial?.id ?? email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const slug = (email.split("@")[0] ?? "guardian").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const id = initial?.id ?? slug;
       await api.run("guardian.create", { id, name, email, phone, locale });
       onDone();
-    } catch (e) { setErr(t("common.error_generic")); }
+    } catch { setErr(t("common.error_generic")); }
     finally { setBusy(false); }
   }
 
   return (
     <main className="pb-24">
-      <PageTitle>{initial ? t("guardian.editor.title.edit") : t("guardian.editor.title.new")}</PageTitle>
-      <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4 px-4">
-        <Field label={t("guardian.name")} required>
-          <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded-xl border border-border bg-card px-3 py-2.5" />
+      <LargeTitle>{initial ? t("guardian.editor.title.edit") : t("guardian.editor.title.new")}</LargeTitle>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4 px-4 pt-1">
+        <Field label={t("guardian.name")} htmlFor="g-name" required>
+          <Input id="g-name" value={name} onChange={(e) => setName(e.target.value)} required />
         </Field>
-        <Field label={t("guardian.email")} required>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full rounded-xl border border-border bg-card px-3 py-2.5" />
+        <Field label={t("guardian.email")} htmlFor="g-email" required>
+          <Input id="g-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
-        <Field label={t("guardian.phone")}>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-border bg-card px-3 py-2.5" />
+        <Field label={t("guardian.phone")} htmlFor="g-phone">
+          <Input id="g-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </Field>
         <Field label={t("guardian.locale")}>
-          <div className="grid grid-cols-2 gap-2">
-            {(["en", "es"] as const).map((l) => (
-              <button key={l} type="button" onClick={() => setLocale(l)} className={`rounded-xl border px-3 py-2.5 text-sm ${locale === l ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>
-                {t(`center.locale.${l}`)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            columns={2}
+            value={locale}
+            onChange={setLocale}
+            segments={[
+              { value: "en", label: t("center.locale.en") },
+              { value: "es", label: t("center.locale.es") },
+            ]}
+          />
         </Field>
-        {err && <p className="text-sm text-destructive">{err}</p>}
-        <div className="flex gap-2 pt-4">
-          <button type="button" onClick={onDone} className="flex-1 rounded-xl border border-border px-4 py-3">{t("common.cancel")}</button>
-          <button type="submit" disabled={busy} className="flex-1 rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground disabled:opacity-50">{t("common.save")}</button>
+        {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
+        <div className="flex gap-2 pt-2">
+          <Button type="button" variant="outline" className="flex-1" onClick={onDone}>{t("common.cancel")}</Button>
+          <Button type="submit" className="flex-1" disabled={busy}>{t("common.save")}</Button>
         </div>
       </form>
     </main>
@@ -149,23 +169,27 @@ export function FamilyEdgesPage({ childId }: { childId: string }) {
 
   return (
     <main className="pb-24">
-      <PageTitle>{t("edge.list.title")}</PageTitle>
-      <div className="px-4">
-        <button onClick={() => setCreating(true)} className="mb-4 w-full rounded-2xl bg-primary px-4 py-3 font-medium text-primary-foreground">
-          + {t("edge.editor.title.new")}
-        </button>
+      <LargeTitle>{t("edge.list.title")}</LargeTitle>
+      <div className="px-4 pt-1">
+        <Button className="mb-4 w-full" onClick={() => setCreating(true)}>
+          <Plus /> {t("edge.editor.title.new")}
+        </Button>
         {!edges?.length ? (
-          <p className="py-6 text-center text-sm opacity-60">{t("edge.empty")}</p>
+          <p className="py-16 text-center text-[15px] text-muted-foreground">{t("edge.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {edges.map((e, i) => (
               <li key={i}>
-                <button onClick={() => setEditing(e)} className="flex w-full items-start justify-between rounded-2xl border border-border bg-card p-4 text-left">
-                  <span>
-                    <span className="block font-medium">{e.guardian_name ?? e.guardian_sub}</span>
-                    <span className="block text-xs opacity-60">{e.relationship}</span>
+                <button onClick={() => setEditing(e)} className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-foreground">{e.guardian_name ?? e.guardian_sub}</span>
+                    <span className="block text-[13px] text-muted-foreground">{e.relationship}</span>
                   </span>
-                  {e.can_pickup && <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200">✓ {t("edge.flag.can_pickup")}</span>}
+                  {e.can_pickup && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                      <Check className="size-3.5" aria-hidden /> {t("edge.flag.can_pickup")}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
@@ -209,34 +233,37 @@ function EdgeEditor({ childId, initial, guardians, onDone }: { childId: string; 
 
   return (
     <main className="pb-24">
-      <PageTitle>{initial ? t("edge.editor.title.edit") : t("edge.editor.title.new")}</PageTitle>
-      <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4 px-4">
+      <LargeTitle>{initial ? t("edge.editor.title.edit") : t("edge.editor.title.new")}</LargeTitle>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4 px-4 pt-1">
         <Field label={t("guardian.name")}>
-          <select value={guardianId} onChange={(e) => setGuardianId(e.target.value)} className="w-full rounded-xl border border-border bg-card px-3 py-2.5">
-            {guardians.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
+          <Select value={guardianId} onValueChange={setGuardianId}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {guardians.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </Field>
         <Field label={t("edge.relationship")}>
-          <div className="grid grid-cols-3 gap-2">
-            {RELS.map((r) => (
-              <button key={r} type="button" onClick={() => setRelationship(r)} className={`rounded-xl border px-2 py-2.5 text-xs ${relationship === r ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>
-                {t(`edge.relationship.${r}`)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            columns={RELS.length}
+            value={relationship}
+            onChange={setRelationship}
+            className="text-xs"
+            segments={RELS.map((r) => ({ value: r, label: t(`edge.relationship.${r}`) }))}
+          />
         </Field>
-        <section className="space-y-2 rounded-2xl border border-border bg-card p-4">
+        <section className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <ToggleRow label={t("edge.flag.can_pickup")} value={canPickup} onChange={setCanPickup} />
           <ToggleRow label={t("edge.flag.receives_daily_feed")} value={receivesFeed} onChange={setReceivesFeed} />
           <ToggleRow label={t("edge.flag.receives_billing")} value={receivesBilling} onChange={setReceivesBilling} />
           <ToggleRow label={t("edge.flag.emergency_contact")} value={emergency} onChange={setEmergency} />
         </section>
-        <Field label={t("edge.flag.custody_notes")}>
-          <textarea value={custodyNotes} onChange={(e) => setCustodyNotes(e.target.value)} rows={2} className="w-full rounded-xl border border-border bg-card px-3 py-2.5" />
+        <Field label={t("edge.flag.custody_notes")} htmlFor="e-custody">
+          <Textarea id="e-custody" value={custodyNotes} onChange={(e) => setCustodyNotes(e.target.value)} rows={2} />
         </Field>
-        <div className="flex gap-2 pt-4">
-          <button type="button" onClick={onDone} className="flex-1 rounded-xl border border-border px-4 py-3">{t("common.cancel")}</button>
-          <button type="submit" disabled={busy} className="flex-1 rounded-xl bg-primary px-4 py-3 font-medium text-primary-foreground disabled:opacity-50">{t("common.save")}</button>
+        <div className="flex gap-2 pt-2">
+          <Button type="button" variant="outline" className="flex-1" onClick={onDone}>{t("common.cancel")}</Button>
+          <Button type="submit" className="flex-1" disabled={busy}>{t("common.save")}</Button>
         </div>
       </form>
     </main>
@@ -245,22 +272,9 @@ function EdgeEditor({ childId, initial, guardians, onDone }: { childId: string; 
 
 function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center justify-between gap-3 py-1">
-      <span className="text-sm">{label}</span>
-      <button type="button" onClick={() => onChange(!value)} className={`relative h-7 w-12 rounded-full transition ${value ? "bg-primary" : "bg-muted"}`}>
-        <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-background shadow transition ${value ? "left-5" : "left-0.5"}`} />
-      </button>
-    </label>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block pb-1.5 text-sm text-muted-foreground">
-        {label}{required && <span className="ml-1 text-destructive">*</span>}
-      </span>
-      {children}
+    <label className="flex items-center justify-between gap-3 px-4 py-3">
+      <span className="text-sm text-foreground">{label}</span>
+      <Switch checked={value} onCheckedChange={onChange} />
     </label>
   );
 }

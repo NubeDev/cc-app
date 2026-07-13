@@ -5,9 +5,8 @@
 //! store's responsibility (the workspace is selected from `cp.ws`).
 
 use lb_auth::Principal;
-use lb_store::{create as store_create, StoreError};
 
-use crate::authz::{assert_reach, Chokepoint};
+use crate::authz::{assert_reach, Chokepoint, RecordError};
 use crate::room::{Room, RoomError};
 
 #[derive(Debug, serde::Deserialize)]
@@ -42,13 +41,14 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     };
     let value = serde_json::to_value(&room).map_err(|e| format!("serialize: {e}"))?;
 
-    store_create(&cp.store, &cp.ws, "room", &parsed.id, &value)
+    cp.records()
+        .create("room", &parsed.id, &value)
         .await
         .map_err(|e| match e {
-            StoreError::Conflict => {
+            RecordError::Conflict => {
                 format!("{}", RoomError::AlreadyExists(parsed.id.clone()))
             }
-            _ => format!("{}: {e}", RoomError::StoreDenied("create".into())),
+            RecordError::Store(s) => format!("{}: {s}", RoomError::StoreDenied("create".into())),
         })?;
 
     let _ = assert_reach(cp, principal, &parsed.id).await;

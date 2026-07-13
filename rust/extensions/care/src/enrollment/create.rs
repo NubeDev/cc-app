@@ -15,9 +15,8 @@
 //! lands.
 
 use lb_auth::Principal;
-use lb_store::{create as store_create, StoreError};
 
-use crate::authz::{assert_reach, Chokepoint};
+use crate::authz::{assert_reach, Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::enrollment::{Enrollment, EnrollmentError, EnrollmentStatus, Weekday};
 use crate::i18n::t;
@@ -91,11 +90,14 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     let id = format!("{}::{}", parsed.child_id, parsed.room_id);
 
     // First-write (a duplicate child↔room pair ⇒ AlreadyExists).
-    store_create(&cp.store, &cp.ws, "enrollment", &id, &value)
+    cp.records()
+        .create("enrollment", &id, &value)
         .await
         .map_err(|e| match e {
-            StoreError::Conflict => format!("{}", EnrollmentError::AlreadyExists(id.clone())),
-            other => format!("{}: {other}", EnrollmentError::StoreDenied("create".into())),
+            RecordError::Conflict => format!("{}", EnrollmentError::AlreadyExists(id.clone())),
+            RecordError::Store(s) => {
+                format!("{}: {s}", EnrollmentError::StoreDenied("create".into()))
+            }
         })?;
 
     // Admin audit through the chokepoint (one audit point; the wall already
@@ -133,14 +135,13 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 /// `waitlist_seq` held by an existing `waitlist` row in that room. Monotonic
 /// and stable — a withdrawal frees no number, so later joins never reuse it.
 async fn next_waitlist_seq(cp: &Chokepoint, room_id: &str) -> Result<u64, String> {
-    let mut resp = cp
-        .store
-        .query_ws(&cp.ws, "SELECT * FROM enrollment", vec![])
-        .await
-        .map_err(|e| format!("{}: {e}", EnrollmentError::StoreDenied("waitlist scan".into())))?;
-    let data_rows: Vec<serde_json::Value> = resp
-        .take::<Vec<serde_json::Value>>((0, "data"))
-        .unwrap_or_default();
+    let data_rows: Vec<serde_json::Value> =
+        cp.records().query_data("enrollment").await.map_err(|e| {
+            format!(
+                "{}: {e}",
+                EnrollmentError::StoreDenied("waitlist scan".into())
+            )
+        })?;
 
     let mut max_seq: u64 = 0;
     for row in data_rows {

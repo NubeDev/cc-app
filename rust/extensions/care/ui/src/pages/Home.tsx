@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PageTitle } from "../components/PageTitle";
+import { LargeTitle } from "../components/LargeTitle";
 import { TabBar } from "../components/TabBar";
 import { useT } from "../hooks/useT";
 import { useCareSession } from "../hooks/useCareSession";
@@ -18,17 +18,16 @@ export function HomePage() {
     <div>
       {tab === "today" && (
         <main className="pb-24">
-          <PageTitle>{t("app.title")}</PageTitle>
+          <LargeTitle>{t("app.title")}</LargeTitle>
           <div className="px-4">
-            {session ? (
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">{session.role} · {session.workspaceId}</p>
-                <p className="text-xs opacity-60">{session.locale}</p>
-              </div>
-            ) : (
-              <p className="py-6 text-sm opacity-60">{t("auth.signIn")}</p>
+            {session && (
+              <p className="text-[13px] capitalize text-muted-foreground">
+                {session.role} · {session.workspaceId}
+              </p>
             )}
-            <p className="mt-8 py-10 text-center text-sm opacity-50">{t("feed.empty")}</p>
+            <div className="flex flex-col items-center gap-2 py-20 text-center">
+              <p className="text-[15px] text-muted-foreground">{t("feed.empty")}</p>
+            </div>
           </div>
         </main>
       )}

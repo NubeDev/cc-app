@@ -1,12 +1,9 @@
 import type { ReactNode } from "react";
-import { useT } from "../hooks/useT";
+import { LargeTitle } from "./LargeTitle";
 
-interface Props { children: ReactNode; }
-export function PageTitle({ children }: Props) {
-  const t = useT();
-  return (
-    <header className="px-4 py-3 text-lg font-semibold" aria-label={t("app.title")}>
-      {children}
-    </header>
-  );
+// PageTitle is the care screens' header. It now renders the iOS large title
+// (DESIGN.md) via LargeTitle so every existing caller upgrades at once; new
+// screens that need a trailing action use LargeTitle directly.
+export function PageTitle({ children }: { children: ReactNode }) {
+  return <LargeTitle>{children}</LargeTitle>;
 }

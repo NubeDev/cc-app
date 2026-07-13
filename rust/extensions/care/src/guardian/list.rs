@@ -31,17 +31,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
     }
 
     // Admin path: list every guardian row, schema-stable SurrealQL.
-    let mut resp = cp
-        .store
-        .query_ws(&cp.ws, "SELECT * FROM guardian", vec![])
+    let data_rows: Vec<serde_json::Value> = cp
+        .records()
+        .query_data("guardian")
         .await
         .map_err(|e| format!("store denied the guardian list: {e}"))?;
-
-    // `SELECT *` returns each row as `{"data": <our record>, "id": <thing>}`;
-    // take by field name ("data") so the row deserializer knows the shape.
-    let data_rows: Vec<serde_json::Value> = resp
-        .take::<Vec<serde_json::Value>>((0, "data"))
-        .unwrap_or_default();
     let mut out: Vec<Guardian> = Vec::new();
     for row in data_rows {
         if let Ok(g) = serde_json::from_value::<Guardian>(row) {
@@ -73,7 +67,9 @@ pub async fn get(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         ));
     }
 
-    let row = lb_store::read(&cp.store, &cp.ws, "guardian", &parsed.id)
+    let row = cp
+        .records()
+        .read("guardian", &parsed.id)
         .await
         .map_err(|_| "store denied the guardian read".to_string())?;
     let value = row.ok_or_else(|| {

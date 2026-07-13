@@ -11,7 +11,6 @@
 //! get verb stays a thin pass-through to the store.
 
 use lb_auth::Principal;
-use lb_store::read;
 
 use crate::authz::{assert_reach, Chokepoint};
 use crate::center::Center;
@@ -33,7 +32,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let row = read(&cp.store, &cp.ws, "center", &parsed.id)
+    let row = cp
+        .records()
+        .read("center", &parsed.id)
         .await
         .map_err(|_| "store denied the center read".to_string())?;
     let value = row.ok_or_else(|| "center not found".to_string())?;

@@ -1,29 +1,33 @@
-import { useLocaleSwitch, useTheme } from "../hooks/useT";
+import { Moon, Sun } from "lucide-react";
+import { useLocaleSwitch, useTheme, useT } from "../hooks/useT";
+import { Segmented } from "./ui/segmented";
+import { Button } from "./ui/button";
 
+// The translucent top bar chrome (DESIGN.md §Shape & Depth: backdrop-blur is
+// the one sanctioned blur). Carries the EN/ES + light/dark controls that
+// propagate through the host theme seam.
 export function TopBar() {
+  const t = useT();
   const { locale, setLocale } = useLocaleSwitch();
   const { resolved, setTheme } = useTheme();
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-end gap-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
-      <div className="flex overflow-hidden rounded-full border border-border bg-card text-xs">
-        <button
-          aria-pressed={locale === "en"}
-          onClick={() => setLocale("en")}
-          className={`px-3 py-1.5 font-medium transition ${locale === "en" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-        >EN</button>
-        <button
-          aria-pressed={locale === "es"}
-          onClick={() => setLocale("es")}
-          className={`px-3 py-1.5 font-medium transition ${locale === "es" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-        >ES</button>
-      </div>
-      <button
+    <header className="sticky top-0 z-30 flex items-center justify-end gap-2 border-b border-border/70 bg-background/70 px-4 py-2 backdrop-blur-xl">
+      <Segmented
+        value={locale}
+        onChange={setLocale}
+        segments={[
+          { value: "en", label: "EN" },
+          { value: "es", label: "ES" },
+        ]}
+      />
+      <Button
+        variant="outline"
+        size="icon"
         onClick={() => setTheme(resolved === "dark" ? "light" : "dark")}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-sm transition"
-        aria-label="Toggle theme"
+        aria-label={t("shell.theme.toggle")}
       >
-        {resolved === "dark" ? "☼" : "☾"}
-      </button>
+        {resolved === "dark" ? <Sun /> : <Moon />}
+      </Button>
     </header>
   );
 }

@@ -9,21 +9,18 @@
 //! gate. It exercises exactly the surface the chokepoint's `assert_reach` /
 //! `reachable_children` use in production.
 //!
-//! ## Scope of what this proves (and the tracked lb gap it does not)
+//! ## Scope of what this proves (and the lb gap it does NOT work around)
 //!
 //! The **reach-resolution** half of era 2 (the read: `check_scoped` /
-//! `scope_filter`) is LIVE and proven here. The scoped grants are seeded via
-//! lb's REAL in-process grant write path (`lb_host::grants_assign` — the same
-//! function `grants.assign` invokes), because the **grant-DERIVATION** half
-//! (a native extension calling `grants.assign` / `grants.revoke` BACK over the
-//! host-callback) is blocked by a platform gap: lb's `/mcp/call` dispatcher
-//! routes only `authz.*` to the authz verbs, NOT `grants.*` — so a native
-//! sidecar cannot mint a grant over the callback yet. That is an upstream lb
-//! fix (route `grants.*`/`roles.*`/`teams.*` through the MCP dispatcher), NOT
-//! a care-side workaround (rule 10). Tracked:
-//! `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`. The
-//! care derivation code (`authz::grant`) is wired and correct against the
-//! verb contract — it goes live the moment lb routes those verbs.
+//! `scope_filter`) is LIVE and proven here. As of `node-v0.3.2` the
+//! `grants.*` / `roles.*` / `teams.*` verbs route through lb's MCP
+//! dispatcher — so a native extension can mint a scoped grant over the
+//! callback the same way production does (`care-authz-scope.md` §"Era 2").
+//! `seed_reach_grant` / `revoke_reach_grant` here go through the
+//! `SidecarClient::call_tool("grants.assign" | "grants.revoke")`
+//! callback the live chokepoint uses; no in-process fallback, no force-
+//! green — see `docs/debugging/authz/grants-verbs-not-on-mcp-callback-surface.md`
+//! for the closed entry.
 //!
 //! What this asserts:
 //!   - **grant → reach:** a seeded scoped grant makes a guardian's
@@ -43,8 +40,9 @@ use std::sync::Arc;
 use care::authz::{assert_reach, reachable_children, Chokepoint, ReachClient, ReachFilter};
 use lb_auth::{mint, verify, Claims, Principal, Role, SigningKey};
 use lb_ext_native::SidecarClient;
-use lb_host::{grants_assign, grants_revoke, Node, Role as NodeRole, Scope, Subject};
+use lb_host::{Node, Role as NodeRole};
 use lb_role_gateway::{router, Gateway};
+use serde_json::json;
 
 const NOW: u64 = 1000;
 const WS: &str = "ws-a";
@@ -87,16 +85,25 @@ async fn serve() -> (Arc<Node>, SigningKey, String) {
     (node, key, format!("http://{addr}"))
 }
 
-/// A `SidecarClient` authenticated as `sub` with the two reach-read caps,
-/// pointed at `base` — the exact grant set a guardian's token carries.
-fn reach_client(key: &SigningKey, base: &str, ws: &str, sub: &str) -> ReachClient {
+/// A `SidecarClient` authenticated as the CARE EXTENSION (not a guardian),
+/// carrying the reach-read caps PLUS the delegation cap — the exact grant set
+/// a real spawned care sidecar's callback token holds (native-caller-identity
+/// scope, node-v0.4.0). The chokepoint names the guardian as `subject` on the
+/// reach verbs; the host resolves THAT subject's grants behind the delegation
+/// cap. One client serves every guardian (the subject flows from the principal
+/// at the `assert_reach` call site, not from this token).
+fn reach_client(key: &SigningKey, base: &str, ws: &str) -> ReachClient {
     let cfg = lb_ext_native::Config::new(
         base,
         token(
             key,
             ws,
-            sub,
-            &["mcp:authz.check_scoped:call", "mcp:authz.scope_filter:call"],
+            "care-ext",
+            &[
+                "mcp:authz.check_scoped:call",
+                "mcp:authz.scope_filter:call",
+                "mcp:authz.delegate_reach:call",
+            ],
         ),
         ws,
         "care",
@@ -104,76 +111,97 @@ fn reach_client(key: &SigningKey, base: &str, ws: &str, sub: &str) -> ReachClien
     ReachClient::new(SidecarClient::with_config(cfg))
 }
 
-/// An era-2 chokepoint whose reach resolves as `guardian_sub` through the
-/// platform (the guardian's own token drives the callback). The store is the
-/// node's real store (fallback), but the reach client makes era 2 the live path.
-fn era2_cp(node: &Arc<Node>, key: &SigningKey, base: &str, ws: &str, guardian_sub: &str) -> Chokepoint {
+/// A `SidecarClient` carrying the grant-write caps an extension needs to
+/// mint scoped reach grants through the host-callback (the live `grants.*`
+/// path the care sidecar's `authz::grant::derive_reach` uses). The
+/// `mcp:grants.assign:call` cap aliases `mcp:grants.revoke:call` (assign/
+/// revoke share the gate) per lb's cap-alias idiom — both verbs resolve
+/// through the same alias at the wall; the reach cap is added so the
+/// anti-widen check passes for `derive_reach`'s scope.
+fn grants_client(key: &SigningKey, base: &str, ws: &str) -> SidecarClient {
+    let cfg = lb_ext_native::Config::new(
+        base,
+        token(
+            key,
+            ws,
+            "care-ext",
+            &[
+                "mcp:grants.assign:call",
+                "mcp:authz.scope_filter:call",
+                REACH_CAP,
+            ],
+        ),
+        ws,
+        "care",
+    );
+    SidecarClient::with_config(cfg)
+}
+
+/// An era-2 chokepoint that resolves reach through the platform. The reach
+/// client is the CARE EXTENSION's identity (holds the delegation cap); WHOSE
+/// reach a call resolves is decided by the `principal` passed to
+/// `assert_reach`/`reachable_children` (the chokepoint names `principal.sub()`
+/// as the `subject`), matching production (native-caller-identity scope). The
+/// store is the node's real store (era-1 fallback), unused on the live path.
+fn era2_cp(node: &Arc<Node>, key: &SigningKey, base: &str, ws: &str) -> Chokepoint {
     Chokepoint::with_host_callback(
         Arc::new(node.store.clone()),
         ws,
-        reach_client(key, base, ws, guardian_sub),
+        reach_client(key, base, ws),
     )
 }
 
-/// Seed a scoped reach grant via lb's REAL in-process grant write path (the
-/// same `grants_assign` the `grants.assign` verb calls) — a genuine grant row
-/// in the real store, not a mock. Stands in for the care sidecar's derivation
-/// call, which is blocked by the tracked lb `grants.*`-callback gap.
-async fn seed_reach_grant(node: &Node, key: &SigningKey, ws: &str, guardian_sub: &str, child_id: &str) {
-    // A workspace-admin principal holding the reach cap (so anti-widen passes).
-    let admin = admin_principal(key, ws);
-    grants_assign(
-        &node.store,
-        &admin,
-        ws,
-        &Subject::User(guardian_sub.into()),
-        REACH_CAP,
-        &Scope::Ids {
-            table: "child".into(),
-            ids: vec![child_id.into()],
-        },
-    )
-    .await
-    .expect("seed scoped reach grant (real write path)");
+/// Seed a scoped reach grant over the host-callback the way production does
+/// (`care.guardianship.link` → `authz::grant::derive_reach` →
+/// `SidecarClient::call_tool("grants.assign", …)`). With `node-v0.3.2+`,
+/// lb routes `grants.*` through the MCP dispatcher; before that tag, this
+/// returned `Denied` and the test seed used the in-process `lb_host::grants_assign`
+/// fallback (closed).
+async fn seed_reach_grant(
+    key: &SigningKey,
+    base: &str,
+    ws: &str,
+    guardian_sub: &str,
+    child_id: &str,
+) {
+    let client = grants_client(key, base, ws);
+    let out = client
+        .call_tool(
+            "grants.assign",
+            json!({
+                "subject": guardian_sub,
+                "cap": REACH_CAP,
+                "scope": { "kind": "ids", "table": "child", "ids": [child_id] },
+            }),
+        )
+        .await
+        .expect("grants.assign over the callback (the live derivation path)");
+    assert_eq!(out["ok"], true);
 }
 
-/// Revoke the seeded scoped reach grant via the real in-process path (stands
-/// in for the sidecar's `grants.revoke` derivation, same lb gap).
-async fn revoke_reach_grant(node: &Node, key: &SigningKey, ws: &str, guardian_sub: &str, child_id: &str) {
-    let admin = admin_principal(key, ws);
-    grants_revoke(
-        &node.store,
-        &admin,
-        ws,
-        &Subject::User(guardian_sub.into()),
-        REACH_CAP,
-        &Scope::Ids {
-            table: "child".into(),
-            ids: vec![child_id.into()],
-        },
-    )
-    .await
-    .expect("revoke scoped reach grant (real write path)");
-}
-
-/// A workspace-admin principal that holds `grants.assign`/`revoke` AND the
-/// reach cap (anti-widen: cannot grant a cap it lacks).
-fn admin_principal(key: &SigningKey, ws: &str) -> Principal {
-    let claims = Claims {
-        sub: "user:care-ext".into(),
-        ws: ws.into(),
-        role: Role::WorkspaceAdmin,
-        caps: vec![
-            "mcp:grants.assign:call".into(),
-            "mcp:grants.revoke:call".into(),
-            REACH_CAP.into(),
-        ],
-        iat: NOW - 1,
-        exp: NOW + 100_000,
-        constraint: None,
-        run_id: None,
-    };
-    verify(key, &mint(key, &claims), NOW).expect("admin verifies")
+/// Revoke the seeded scoped reach grant over the host-callback the way
+/// production does (`care.guardianship.unlink` →
+/// `authz::grant::remove_reach` → `SidecarClient::call_tool("grants.revoke", …)`).
+async fn revoke_reach_grant(
+    key: &SigningKey,
+    base: &str,
+    ws: &str,
+    guardian_sub: &str,
+    child_id: &str,
+) {
+    let client = grants_client(key, base, ws);
+    let out = client
+        .call_tool(
+            "grants.revoke",
+            json!({
+                "subject": guardian_sub,
+                "cap": REACH_CAP,
+                "scope": { "kind": "ids", "table": "child", "ids": [child_id] },
+            }),
+        )
+        .await
+        .expect("grants.revoke over the callback (the live derivation path)");
+    assert_eq!(out["ok"], true);
 }
 
 /// Verify a `Member` guardian principal (the chokepoint reads its role).
@@ -186,11 +214,13 @@ async fn era2_grant_then_reach_and_revoke_removes_it() {
     let (node, key, base) = serve().await;
 
     // Seed the scoped reach grant for sam → leo (the derivation the care
-    // sidecar performs on care.guardianship.link, via the real write path).
-    seed_reach_grant(&node, &key, WS, "sam", "child:leo").await;
+    // sidecar performs on care.guardianship.link, via the live
+    // grants.assign callback).
+    seed_reach_grant(&key, &base, WS, "user:sam", "child:leo").await;
 
-    // Sam's era-2 chokepoint resolves reach through the PLATFORM over HTTP.
-    let sam_cp = era2_cp(&node, &key, &base, WS, "sam");
+    // The era-2 chokepoint resolves reach through the PLATFORM over HTTP; the
+    // subject flows from the principal (`sam`) at each call site.
+    let sam_cp = era2_cp(&node, &key, &base, WS);
     let sam = guardian(&key, "sam", WS);
 
     assert_reach(&sam_cp, &sam, "child:leo")
@@ -198,7 +228,11 @@ async fn era2_grant_then_reach_and_revoke_removes_it() {
         .expect("era-2 allow: sam reaches leo via the platform grant (over HTTP)");
 
     let reached = reachable_children(&sam_cp, &sam).await;
-    assert_eq!(reached, vec!["child:leo".to_string()], "era-2 scope_filter set");
+    assert_eq!(
+        reached,
+        vec!["child:leo".to_string()],
+        "era-2 scope_filter set"
+    );
 
     // Cross-family deny: sam has no grant for mia → the platform denies.
     assert_reach(&sam_cp, &sam, "child:mia")
@@ -206,7 +240,7 @@ async fn era2_grant_then_reach_and_revoke_removes_it() {
         .expect_err("era-2 deny: sam does not reach mia");
 
     // Revoke (the derivation care.guardianship.unlink performs).
-    revoke_reach_grant(&node, &key, WS, "sam", "child:leo").await;
+    revoke_reach_grant(&key, &base, WS, "user:sam", "child:leo").await;
 
     // Reach now denies AND the grant is PHYSICALLY GONE — scope_filter returns
     // no ids (not merely that a read denied). A grant surviving unlink is the
@@ -215,8 +249,12 @@ async fn era2_grant_then_reach_and_revoke_removes_it() {
         .await
         .expect_err("era-2 deny after revoke");
 
-    let sam_reach = reach_client(&key, &base, WS, "sam");
-    match sam_reach.reachable().await.expect("scope_filter ok") {
+    let sam_reach = reach_client(&key, &base, WS);
+    match sam_reach
+        .reachable("user:sam")
+        .await
+        .expect("scope_filter ok")
+    {
         ReachFilter::Ids(ids) => assert!(
             ids.is_empty(),
             "grant physically gone: scope_filter returns no ids after revoke, got {ids:?}"
@@ -230,11 +268,11 @@ async fn era2_workspace_isolation() {
     let (node, key, base) = serve().await;
 
     // Grant sam → leo in ws-a only.
-    seed_reach_grant(&node, &key, WS, "sam", "child:leo").await;
+    seed_reach_grant(&key, &base, WS, "user:sam", "child:leo").await;
 
     // A guardian in ws-b (same sub name, different workspace) sees NONE of
     // ws-a's grants — the workspace is the token's, un-spoofable (the wall).
-    let sam_b_cp = era2_cp(&node, &key, &base, WS_B, "sam");
+    let sam_b_cp = era2_cp(&node, &key, &base, WS_B);
     let sam_b = guardian(&key, "sam", WS_B);
     assert_reach(&sam_b_cp, &sam_b, "child:leo")
         .await

@@ -29,9 +29,18 @@ path = "src/main.rs"
 
 [dependencies]
 # The embed seam (WORKFLOW-LB.md §1). The binary builds against the
-# published git tag only — `node-v0.3.0`, pinned in the workspace
+# published git tag only — `node-v0.3.3`, pinned in the workspace
 # Cargo.toml. Milestone 00 landed, so there is no [patch] override.
 lb-node = { workspace = true }
+
+# The native install/supervise seam the boot layer uses to spawn + register
+# the care sidecar at start (`install_native` + `OsLauncher`). Same tag as
+# `lb-node` (cargo unifies the shared `lb-store`/`lb-auth` instances — the
+# whole workspace resolves ONE lb world from the pinned tag, no [patch]).
+# `lb-auth` fills the install caller's admin `Principal` at the boundary.
+lb-host = { workspace = true }
+lb-supervisor = { workspace = true }
+lb-auth = { workspace = true }
 
 # The async runtime + error type at the binary boundary. Mirrors the
 # rubix-ai host: a thin `#[tokio::main]` driving the boot seam.

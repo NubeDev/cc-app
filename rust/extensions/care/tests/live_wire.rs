@@ -10,8 +10,8 @@
 //!
 //! ## Why this matters
 //!
-//! Milestone 02 + 03 ship the verbs + the chokepoint's era-1 read path
-//! + the era-2 read delegation (over a real booted gateway, in
+//! Milestone 02 + 03 ship the verbs, the chokepoint's era-1 read path,
+//! and the era-2 read delegation (over a real booted gateway, in
 //! `matrix_era2.rs`). Milestone 04 is the moment those verbs go from
 //! "library-tested" to "wired onto the live wire" — i.e. a real
 //! sidecar can be spawned by a real host and the dispatcher reaches
@@ -22,11 +22,15 @@
 //!
 //! ## What it asserts (no mocks — CLAUDE.md rule 4)
 //!
-//! 1. `Care::boot` resolves the supervisor env (the vars the
-//!    `lb-supervisor` injects at spawn: `LB_EXT_WS`, `LB_EXT_TOKEN`,
-//!    `LB_GATEWAY_URL`, `LB_EXT_STORE_URL`) and constructs a usable
-//!    impl — the chokepoint carries a real `ReachClient` (the era-2
-//!    path) and a real `lb_store::Store` (the era-1 fallback).
+//! 1. `Care::boot` resolves the supervisor env (`LB_EXT_WS`,
+//!    `LB_EXT_STORE_URL`, …) and constructs a usable impl over the
+//!    in-process `Local` `RecordStore` + `lb_store::Store`. This file
+//!    drives the ERA-1 (no-gateway) path on purpose — the era-2
+//!    `Callback` `RecordStore` + `ReachClient` are constructed only when
+//!    `LB_EXT_TOKEN` + `LB_GATEWAY_URL` are present, and are proven end
+//!    to end against a REAL gateway in `live_node.rs` / `matrix_era2.rs`
+//!    (a placeholder gateway here would make a record-writing verb POST
+//!    to a dead URL).
 //! 2. The init handshake reports every registered verb — the
 //!    `[[tools]]` list in the manifest matches what `tools()` returns.
 //! 3. A `care.ping` dispatch through `Tools::call` round-trips with
@@ -61,8 +65,12 @@ fn boot_env() -> std::collections::HashMap<String, String> {
     let mut env = std::collections::HashMap::new();
     env.insert("LB_EXT_WS".into(), WS.into());
     env.insert("LB_EXT_ID".into(), "care".into());
-    env.insert("LB_EXT_TOKEN".into(), "test-token-not-actually-used".into());
-    env.insert("LB_GATEWAY_URL".into(), "http://127.0.0.1:0".into());
+    // The era-1 (in-process) boot path: NO `LB_EXT_TOKEN` / `LB_GATEWAY_URL`, so
+    // `Care::boot` builds the `Local` `RecordStore` over the `mem://` store below
+    // and record I/O stays in-process. (Setting a placeholder gateway here would
+    // build the era-2 `Callback` `RecordStore`, and a record-writing verb would
+    // then try to POST to a dead URL — that whole era-2 path is proven end to end
+    // against a REAL gateway in `live_node.rs`, which is where it belongs.)
     env.insert("LB_EXT_STORE_URL".into(), "mem://".into());
     env
 }
@@ -133,7 +141,9 @@ async fn ping_round_trips_through_the_wired_in_dispatcher() {
 
     // Unknown tool is an explicit error, not a panic.
     assert!(
-        <Care as Tools>::call(&mut care, "care.unknown", "{}").await.is_err(),
+        <Care as Tools>::call(&mut care, "care.unknown", "{}")
+            .await
+            .is_err(),
         "unknown tool ⇒ Err, not panic"
     );
 }

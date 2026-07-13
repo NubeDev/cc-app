@@ -10,7 +10,6 @@
 //! hides an archived row from non-admin callers (defence in depth with `list`).
 
 use lb_auth::Principal;
-use lb_store::read;
 
 use crate::authz::{assert_reach, Chokepoint};
 use crate::child::Child;
@@ -29,7 +28,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let value = read(&cp.store, &cp.ws, "child", &parsed.id)
+    let value = cp
+        .records()
+        .read("child", &parsed.id)
         .await
         .map_err(|_| "store denied the child read".to_string())?
         .ok_or_else(|| "child not found".to_string())?;
@@ -106,7 +107,9 @@ mod tests {
         child_create::run(&cp, &a, r#"{"id":"leo","name":"Leo","dob":"2021-03-15"}"#)
             .await
             .unwrap();
-        child_archive::run(&cp, &a, r#"{"id":"leo"}"#).await.unwrap();
+        child_archive::run(&cp, &a, r#"{"id":"leo"}"#)
+            .await
+            .unwrap();
 
         // Admin still sees it (audit).
         assert!(run(&cp, &a, r#"{"id":"leo"}"#).await.is_ok());

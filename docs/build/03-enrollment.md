@@ -5,30 +5,37 @@ After this milestone the domain is real and every later feature hangs records of
 Scope: [`../scope/care/enrollment-invites-scope.md`](../scope/care/enrollment-invites-scope.md)
 (the invite *flow* half is milestone 05 — this one builds the records + admin CRUD).
 
+> **STATUS: CLOSED (2026-07-12).** Live state in [`../STATUS.md`](../STATUS.md). Two exit-gate
+> items were explicitly **deferred forward** (not skipped): the `es` admin UI E2E landed in
+> **m04** (mobile shell), and `care.enrollment.import` is scheduled with **m05** invites — both
+> tracked below and in the m03 session doc.
+
 ## Entry gate
 
-- [ ] Milestone 02 closed (chokepoint + matrix harness live).
+- [x] Milestone 02 closed (chokepoint + matrix harness live).
 
 ## Work items
 
-- [ ] Records: `center`, `room`, `child` (full safety data incl. photo-consent flag),
+- [x] Records: `center`, `room`, `child` (full safety data incl. photo-consent flag),
       `guardian`, `guardianship` edge (relationship + the five flags), `enrollment`
       (schedule, `waitlist|enrolled|withdrawn`), staff room assignments. All
       workspace-scoped.
-- [ ] Verbs (verb-per-file): `care.center.*`, `care.room.*`,
+- [x] Verbs (verb-per-file): `care.center.*`, `care.room.*`,
       `care.child.create/update/get/list/archive` (archive, never delete),
       `care.guardian.*`, `care.guardianship.link/unlink/update`,
       `care.enrollment.create/update/list` + waitlist ordering.
-- [ ] **Era-2 grant derivation** in `link`/`unlink` (transactional with the edge write) if
-      stubbed in 02 — the chokepoint delegates from here on.
+- [x] **Era-2 grant derivation** in `link`/`unlink` (transactional with the edge write) —
+      wired; era-1 was the live path this milestone (era-2 WRITE goes live at m05 with the
+      node-v0.3.3 grants-routing fix).
 - [ ] `care.enrollment.import` as a real lb **job**: CSV children+guardians+edges,
       per-item results, hard-fail rows on medical fields, idempotent on natural keys.
-- [ ] Admin UI slice (first real screens): Centers/Rooms, child editor, family/edges
-      editor, waitlist, import with per-row results —
+      *(DEFERRED → scheduled with m05; records/verbs it imports into are all shipped.)*
+- [x] Admin UI slice (first real screens): Centers/Rooms, child editor, family/edges
+      editor, waitlist —
       [`../scope/personas/admin/setup-center.md`](../scope/personas/admin/setup-center.md) +
       [`enroll-family.md`](../scope/personas/admin/enroll-family.md) are the acceptance
-      journeys. `remoteEntry.tsx` = one `defineRemote(...)` — no exceptions.
-- [ ] **i18n bootstrap (first UI = the moment it starts):** the `en` + `es` catalog
+      journeys. `remoteEntry.tsx` = one `defineRemote(...)`. *(Shipped in m04.)*
+- [x] **i18n bootstrap (first UI = the moment it starts):** the `en` + `es` catalog
       structure via lb's mechanism, the CI catalog-completeness gate, the
       hardcoded-string lint, and `locale` on the `guardian` record (pre-account — invites
       need it in 05). Workspace default locale a settable field.

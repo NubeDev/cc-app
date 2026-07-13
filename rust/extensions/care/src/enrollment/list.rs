@@ -43,14 +43,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         None => None,
     };
 
-    let mut resp = cp
-        .store
-        .query_ws(&cp.ws, "SELECT * FROM enrollment", vec![])
+    let data_rows: Vec<serde_json::Value> = cp
+        .records()
+        .query_data("enrollment")
         .await
         .map_err(|e| format!("store denied the enrollment list: {e}"))?;
-    let data_rows: Vec<serde_json::Value> = resp
-        .take::<Vec<serde_json::Value>>((0, "data"))
-        .unwrap_or_default();
 
     let mut out: Vec<Enrollment> = Vec::new();
     for row in data_rows {

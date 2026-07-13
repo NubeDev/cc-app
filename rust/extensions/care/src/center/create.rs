@@ -10,9 +10,8 @@
 //! line of input.
 
 use lb_auth::Principal;
-use lb_store::{create as store_create, StoreError};
 
-use crate::authz::{assert_reach, Chokepoint};
+use crate::authz::{assert_reach, Chokepoint, RecordError};
 use crate::center::{Center, CenterError, Locale};
 
 /// The verb body's input. Opaque JSON the host marshals — the dispatcher
@@ -69,13 +68,16 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 
     // First-write (Conflict ⇒ AlreadyExists; the verb body's typed
     // surface — the host maps this to the MCP error shape).
-    store_create(&cp.store, &cp.ws, "center", &parsed.id, &value)
+    cp.records()
+        .create("center", &parsed.id, &value)
         .await
         .map_err(|e| match e {
-            StoreError::Conflict => {
+            RecordError::Conflict => {
                 format!("{}", CenterError::AlreadyExists(parsed.id.clone()))
             }
-            other => format!("{}: {other}", CenterError::StoreDenied("create".into())),
+            RecordError::Store(s) => {
+                format!("{}: {s}", CenterError::StoreDenied("create".into()))
+            }
         })?;
 
     // Audit the create (one audit point — admin is authorized by role

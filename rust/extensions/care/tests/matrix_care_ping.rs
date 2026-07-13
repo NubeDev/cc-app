@@ -41,6 +41,11 @@ const COVERED_VERBS: &[&str] = &[
     "enrollment.create",
     "enrollment.list",
     "enrollment.update",
+    "invite.create_guardian",
+    "invite.create_staff",
+    "invite.list",
+    "invite.resend",
+    "invite.revoke",
 ];
 
 #[test]

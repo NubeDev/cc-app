@@ -7,6 +7,19 @@
   "auth.password": "Contraseña",
   "workspace.pick": "Elige un espacio de trabajo",
   "shell.loading": "Cargando…",
+  "shell.theme.toggle": "Tema",
+  "shell.workspaces": "Espacios",
+  "common.retry": "Reintentar",
+  "error.offline.title": "Estás sin conexión",
   "error.offline": "Parece que estás sin conexión.",
-  "error.denied": "No tienes acceso a esto."
+  "error.denied": "No tienes acceso a esto.",
+  "invite.accept.title": "Tienes una invitación",
+  "invite.accept.subtitle": "Acepta tu invitación para ver a tu hijo/a.",
+  "invite.accept.cta": "Aceptar invitación",
+  "invite.accept.accepting": "Aceptando…",
+  "invite.accept.missing_token": "Este enlace de invitación falta o no es válido.",
+  "invite.accept.failed": "No pudimos aceptar esta invitación. El enlace puede haber caducado o sido revocado.",
+  "invite.accept.password_label": "Elige una contraseña",
+  "invite.accept.password_hint": "Usarás tu correo y esta contraseña para iniciar sesión.",
+  "invite.accept.password_too_short": "Usa al menos 8 caracteres."
 }

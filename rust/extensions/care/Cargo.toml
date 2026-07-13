@@ -43,7 +43,7 @@ path = "src/main.rs"
 # Pinned to a PUBLISHED sdk-v* tag on the SDK repo (NubeDev/lb-ext-sdk).
 # NOT patched — this is the published SDK and is not affected by the
 # in-flight milestone 00 work in the lb repo.
-# From sdk-v0.3.0 the SDK ALSO re-exports the native host-callback client
+# From sdk-v0.4.0 the SDK ALSO re-exports the native host-callback client
 # (`SidecarClient` / `Config` / `CallError`) — one dep, both directions of
 # the wire (this ext's `authz::ReachClient` is built on it).
 lb-ext-native = { workspace = true }
@@ -52,11 +52,11 @@ lb-ext-native = { workspace = true }
 # from the lb store directly (era 1, now the documented fallback path).
 # The store is the published seam (workspace-scoped SurrealDB); same git
 # tag as `lb-node` resolves to — `node-v0.3.0`, pinned, no [patch].
-lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
+lb-store = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
 
 # The authz chokepoint takes a `Principal` for its role check; that's
 # the only place below the boot seam we read it from.
-lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
+lb-auth = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
 
 # Per-tool args/results + the authz chokepoint's principal payload.
 serde = { workspace = true }
@@ -79,18 +79,38 @@ tokio = { version = "1", features = ["rt", "macros", "io-util", "io-std", "rt-mu
 # here so the binary doesn't pull in a heavier runtime just for tests.
 futures = "0.3"
 
+# `care.invite.*` derives the lb-internal `token_hash` from the raw
+# invite token the `invite.create` callback returns (the same SHA-256
+# lb's invites crate uses — the hash IS the lb-internal invite id, so
+# `invite.revoke` / `invite.resend` need to look up by hash). Same
+# pinned version as the lb-host's vendored copy so a build + a test
+# agree on the world.
+sha2 = "0.10"
+
 [dev-dependencies]
 # Tests use the host's store + auth crates to seed the matrix harness
 # fixture + assert deny semantics — the real infra (CLAUDE.md rule 4
 # "no mocks"). Same git tag as lb-store/lb-auth (above) so a build +
 # test agree on the world.
-lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
+lb-host = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
 
 # The era-2 matrix test boots a REAL gateway (`lb-role-gateway`) on a real
 # TCP port and drives the chokepoint's host-callback path against it — the
 # same posture as lb's own `native_callback_test` (no mocks). `axum` serves
 # the real router; the `SidecarClient` (re-exported through `lb-ext-native`,
 # already a normal dep) makes real `reqwest` calls back into it.
-lb-role-gateway = { git = "https://github.com/NubeDev/lb", tag = "node-v0.3.1" }
+lb-role-gateway = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
 axum = "0.8"
-tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread", "net"] }
+tokio = { version = "1", features = ["rt", "macros", "io-util", "rt-multi-thread", "net", "time"] }
+
+# The live-node test (`tests/live_node.rs`) stands the sidecar up as a REAL OS
+# child via `install_native` + `OsLauncher`, then drives `care.*` over real
+# HTTP `/mcp/call` — proving the node's durable store is the single source of
+# truth AND that data survives a restart. `lb-supervisor` is the native
+# launcher (same tag as lb-host); `reqwest` is the HTTP client the test drives
+# the gateway with (the same transport the browser shell + seed.sh use).
+lb-supervisor = { git = "https://github.com/NubeDev/lb", tag = "node-v0.4.2" }
+# rustls (not native OpenSSL — this box has no libssl/pkg-config); the calls
+# are plain-HTTP localhost anyway, but default-features off keeps openssl-sys
+# out of the build graph.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

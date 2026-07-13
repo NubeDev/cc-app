@@ -9,9 +9,8 @@
 //! lands; a duplicate id ⇒ `AlreadyExists` (create is first-write, not upsert).
 
 use lb_auth::Principal;
-use lb_store::{create as store_create, StoreError};
 
-use crate::authz::{assert_reach, Chokepoint};
+use crate::authz::{assert_reach, Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::guardian::{validate_email, Guardian, GuardianError};
 use crate::i18n::t;
@@ -68,13 +67,16 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 
     // First-write (Conflict ⇒ AlreadyExists — create is first-write, not
     // upsert; the host maps this typed surface to the MCP error shape).
-    store_create(&cp.store, &cp.ws, "guardian", &parsed.id, &value)
+    cp.records()
+        .create("guardian", &parsed.id, &value)
         .await
         .map_err(|e| match e {
-            StoreError::Conflict => {
+            RecordError::Conflict => {
                 format!("{}", GuardianError::AlreadyExists(parsed.id.clone()))
             }
-            other => format!("{}: {other}", GuardianError::StoreDenied("create".into())),
+            RecordError::Store(s) => {
+                format!("{}: {s}", GuardianError::StoreDenied("create".into()))
+            }
         })?;
 
     // Admin audit through the chokepoint (one audit point).
@@ -145,7 +147,12 @@ mod tests {
         let cp = Chokepoint::new(store, "acme");
         let p = admin(&key, "acme");
 
-        let res = run(&cp, &p, r#"{"id":"sam","name":"Sam","email":"not-an-email"}"#).await;
+        let res = run(
+            &cp,
+            &p,
+            r#"{"id":"sam","name":"Sam","email":"not-an-email"}"#,
+        )
+        .await;
         assert!(res.is_err(), "a malformed email must fail");
         assert!(res.unwrap_err().contains("invalid email"));
     }
@@ -157,7 +164,12 @@ mod tests {
         let cp = Chokepoint::new(store, "acme");
         let p = admin(&key, "acme");
 
-        let res = run(&cp, &p, r#"{"id":"sam","name":"  ","email":"sam@example.com"}"#).await;
+        let res = run(
+            &cp,
+            &p,
+            r#"{"id":"sam","name":"  ","email":"sam@example.com"}"#,
+        )
+        .await;
         assert!(res.is_err(), "an empty name must fail");
         assert!(res.unwrap_err().contains("missing required field"));
     }

@@ -7,7 +7,6 @@
 //! editable here — `care.child.archive` owns it (archive, never delete).
 
 use lb_auth::Principal;
-use lb_store::{read, write as store_write};
 
 use crate::authz::{assert_reach, Chokepoint};
 use crate::center::Locale;
@@ -51,7 +50,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let mut row = read(&cp.store, &cp.ws, "child", &parsed.id)
+    let mut row = cp
+        .records()
+        .read("child", &parsed.id)
         .await
         .map_err(|_| format!("{}", ChildError::StoreDenied("update read".into())))?
         .ok_or_else(|| format!("{}", ChildError::NotFound(parsed.id.clone())))?;
@@ -82,7 +83,8 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         row["photo_consent"] = serde_json::Value::Bool(pc);
     }
 
-    store_write(&cp.store, &cp.ws, "child", &parsed.id, &row)
+    cp.records()
+        .write("child", &parsed.id, &row)
         .await
         .map_err(|e| format!("{}: {e}", ChildError::StoreDenied("update write".into())))?;
 

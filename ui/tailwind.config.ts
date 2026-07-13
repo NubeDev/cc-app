@@ -1,8 +1,17 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: "class",
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  // Include the care ext's source: in dev + the combined build the host
+  // imports the ext's remoteEntry directly and runs the single Tailwind pass
+  // that must emit both surfaces' utilities. (The ext's OWN lib build still
+  // scopes its CSS via extTailwindPreset() — this is the dev/mount path.)
+  content: [
+    "./index.html",
+    "./src/**/*.{ts,tsx}",
+    "../rust/extensions/care/ui/src/**/*.{ts,tsx}",
+  ],
   theme: {
     extend: {
       colors: {
@@ -48,7 +57,15 @@ export default {
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Segoe UI", "Roboto", "system-ui", "sans-serif"],
       },
+      keyframes: {
+        "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
+        "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
     },
   },
-  plugins: [],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

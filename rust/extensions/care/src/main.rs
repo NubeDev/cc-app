@@ -27,13 +27,15 @@ async fn main() -> std::io::Result<()> {
     // so the sidecar hands the env map across one responsibility
     // boundary (env-reading here; everything below lives off the impl).
     let env: std::collections::HashMap<String, String> = std::env::vars().collect();
-    let care = Care::boot(&env)
-        .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let care = Care::boot(&env).await.map_err(std::io::Error::other)?;
 
-    // Stamp the synthetic admin once the boot resolves. The host's
-    // future per-call `LB_EXT_PRINCIPAL_JSON` stamp overrides this per
-    // dispatch; the boot-time integration test paths in through here.
+    // NOTE (rule-7, ENFORCED in-sidecar): every routed `call` now carries the
+    // authorized caller in the native frame (`CallParams.caller`, sdk-v0.4.0 /
+    // node-v0.4.0 — native-caller-identity scope). `Care::call_with_caller`
+    // projects it per dispatch, so the authz chokepoint's row filter is ABOUT the
+    // real caller (a guardian reaches only their linked children — rule 7). The
+    // dead `LB_EXT_PRINCIPAL_JSON` env seam is retired: the frame is the source of
+    // the caller now. Fixed by `lb/docs/scope/extensions/native-caller-identity-scope.md`.
     eprintln!(
         "care: sidecar ready (ws={}, tools={})",
         care.ws,

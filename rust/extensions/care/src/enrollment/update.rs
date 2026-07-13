@@ -7,7 +7,6 @@
 //! "waitlist ordering stable").
 
 use lb_auth::Principal;
-use lb_store::{read, write as store_write};
 
 use crate::authz::{assert_reach, Chokepoint};
 use crate::center::Locale;
@@ -53,7 +52,9 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .await
         .map_err(|e| format!("{e}"))?;
 
-    let mut row = read(&cp.store, &cp.ws, "enrollment", &id)
+    let mut row = cp
+        .records()
+        .read("enrollment", &id)
         .await
         .map_err(|_| format!("{}", EnrollmentError::StoreDenied("update read".into())))?
         .ok_or_else(|| format!("{}", EnrollmentError::NotFound(id.clone())))?;
@@ -77,9 +78,15 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         row["start_date"] = serde_json::Value::String(start_date.clone());
     }
 
-    store_write(&cp.store, &cp.ws, "enrollment", &id, &row)
+    cp.records()
+        .write("enrollment", &id, &row)
         .await
-        .map_err(|e| format!("{}: {e}", EnrollmentError::StoreDenied("update write".into())))?;
+        .map_err(|e| {
+            format!(
+                "{}: {e}",
+                EnrollmentError::StoreDenied("update write".into())
+            )
+        })?;
 
     let message = if new_status == Some(EnrollmentStatus::Withdrawn) {
         t(

@@ -10,7 +10,6 @@
 //! grant in lockstep no matter which verb changes liveness.
 
 use lb_auth::Principal;
-use lb_store::{read, write as store_write};
 
 use crate::authz::{grant, Chokepoint};
 use crate::center::Locale;
@@ -53,8 +52,13 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .map_err(|e| format!("invalid care.guardianship.update input: {e}"))?;
     let locale = Locale::parse(parsed.locale.as_deref().unwrap_or("en")).unwrap_or(Locale::En);
 
-    let id = edge_id(&parsed.guardian_sub, &parsed.child_id);
-    let mut row = read(&cp.store, &cp.ws, "guardianship", &id)
+    // Canonicalise the subject to the auth-subject form so the edge id + the
+    // era-2 grant subject match what `link` derived (see `authz::canonical_subject`).
+    let guardian_sub = crate::authz::canonical_subject(&parsed.guardian_sub);
+    let id = edge_id(&guardian_sub, &parsed.child_id);
+    let mut row = cp
+        .records()
+        .read("guardianship", &id)
         .await
         .map_err(|_| format!("{}", GuardianshipError::StoreDenied("update read".into())))?
         .ok_or_else(|| format!("{}", GuardianshipError::NotFound(id.clone())))?;
@@ -84,18 +88,24 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     row["live"] = serde_json::Value::Bool(now_live);
 
     // Persist the edited edge.
-    store_write(&cp.store, &cp.ws, "guardianship", &id, &row)
+    cp.records()
+        .write("guardianship", &id, &row)
         .await
-        .map_err(|e| format!("{}: {e}", GuardianshipError::StoreDenied("update write".into())))?;
+        .map_err(|e| {
+            format!(
+                "{}: {e}",
+                GuardianshipError::StoreDenied("update write".into())
+            )
+        })?;
 
     // Keep the scoped grant in lockstep with a liveness transition (era 2).
     if let Some(reach) = cp.reach() {
         let res = match (was_live, now_live) {
             (false, true) => {
-                grant::derive_reach(reach.client(), &parsed.guardian_sub, &parsed.child_id).await
+                grant::derive_reach(reach.client(), &guardian_sub, &parsed.child_id).await
             }
             (true, false) => {
-                grant::remove_reach(reach.client(), &parsed.guardian_sub, &parsed.child_id).await
+                grant::remove_reach(reach.client(), &guardian_sub, &parsed.child_id).await
             }
             _ => Ok(()), // no liveness change ⇒ no grant change
         };
@@ -104,10 +114,7 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             // a failed rollback loudly via the typed `Diverged` error (same
             // lockout/leak divergence as link/unlink; words in records.rs).
             row["live"] = serde_json::Value::Bool(was_live);
-            let err = if store_write(&cp.store, &cp.ws, "guardianship", &id, &row)
-                .await
-                .is_ok()
-            {
+            let err = if cp.records().write("guardianship", &id, &row).await.is_ok() {
                 GuardianshipError::GrantDerivationFailed(e.to_string())
             } else {
                 GuardianshipError::GrantDerivationDiverged {
@@ -124,10 +131,7 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         message: t(
             locale,
             "guardian.updated",
-            &[
-                ("guardian", &parsed.guardian_sub),
-                ("child", &parsed.child_id),
-            ],
+            &[("guardian", &guardian_sub), ("child", &parsed.child_id)],
         ),
     };
     serde_json::to_string(&reply).map_err(|e| format!("serialize reply: {e}"))
@@ -187,7 +191,10 @@ mod tests {
             .unwrap();
         assert_eq!(row["can_pickup"], true);
         assert_eq!(row["receives_billing"], true);
-        assert_eq!(row["live"], true, "liveness untouched by a flag-only update");
+        assert_eq!(
+            row["live"], true,
+            "liveness untouched by a flag-only update"
+        );
     }
 
     #[tokio::test]

@@ -12,6 +12,4 @@ pub mod update;
 
 mod records;
 
-pub use records::{
-    edge_id, EdgeFlags, Guardianship, GuardianshipError, Relationship,
-};
+pub use records::{edge_id, EdgeFlags, Guardianship, GuardianshipError, Relationship};

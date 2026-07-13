@@ -77,9 +77,22 @@ milestone level; parallelism lives *inside* milestones (below).
 2. Open `sessions/<topic>/<milestone>-session.md` (status `in-progress`).
 3. Execute the work items — vertical slices, whole contract, deny-test per verb.
 4. Run the **exit gate** checklist yourself; paste green output in the session doc.
-5. Tick the milestone's checkboxes in its doc, update `STATUS.md`, resolve/refresh scope
-   open questions, promote shipped docs. HOW-TO-CODE §4 is the definition of done.
-6. If anything broke non-trivially: `debugging/<area>/<symptom>.md`.
+5. **Close the milestone doc — not optional, and it is where drift creeps in.** In the
+   milestone's own `NN-*.md`: (a) add the status banner right under the H1 —
+   `> **STATUS: CLOSED (YYYY-MM-DD).** Live state in [../STATUS.md](../STATUS.md).`; (b) tick
+   every `- [ ]` → `- [x]`; a box that did **not** ship stays `- [ ]` with a one-line
+   `*(DEFERRED → where it went)*` note (never silently tick a deferral); (c) if what shipped
+   **diverged from the plan** (e.g. m04 built a thin ui-sdk shell, not the planned
+   minimal-shell consume), add a one-paragraph **as-built note** to the banner so the doc
+   tells the truth instead of the original guess.
+6. Update `STATUS.md`, resolve/refresh scope open questions, promote shipped docs.
+   HOW-TO-CODE §4 is the definition of done.
+7. If anything broke non-trivially: `debugging/<area>/<symptom>.md`.
+
+> **The check:** a build doc a reader opens must match reality at a glance — a CLOSED banner,
+> ticked boxes, deferrals labeled. If `STATUS.md` says a milestone closed but its `NN-*.md`
+> still shows open boxes and no banner, step 5 was skipped — go back and close it. (This
+> exact drift was reconciled across 01–04 on 2026-07-12.)
 
 ## Non-negotiables the whole build hangs on
 

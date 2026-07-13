@@ -24,6 +24,7 @@
 #   make dev         cloud node + mobile shell together (Ctrl-C stops both) — the demo loop
 #   make cloud       run JUST the node with the SSE gateway (CC_GATEWAY_ADDR) — cloud
 #   make ui          run JUST the mobile shell dev server (browser build, points at the gateway)
+#   make seed        seed a running node: demo login + 1 center/room/teacher/guardian+child
 #
 #   make pack        build + sign the care extension into .cc-app/extensions (lb-pack)
 #   make publish-ext pack + upload it to a RUNNING node (make cloud first) → installed + loaded live
@@ -48,6 +49,12 @@ EXT_DIR := rust/extensions/care/ui
 # `cargo run -p cc-node` runs that package's one binary. The compiled binary is still `cc-node`.
 NODE_BIN := cc-node
 
+# The lb tag the host + the extension pins. `LB_TAG` drives EVERY lb-backed
+# tool (the lb-node pin in `rust/Cargo.toml`, the lb-{store,auth,host,role-gateway}
+# pins in `rust/extensions/care/Cargo.toml`, and the `lb-pack` install the Makefile
+# ships). Bump once; the workspace builds from the same tag the Makefile installs.
+LB_TAG ?= node-v0.4.2
+
 # Dev ports — kept in sync with the code. The node mounts the SSE/HTTP gateway on GW_ADDR
 # when CC_GATEWAY_ADDR is set; the mobile shell's browser build points VITE_GATEWAY_URL at it.
 # Vite dev server listens on UI_PORT (strictPort in vite.config.ts — change it there too if
@@ -66,6 +73,17 @@ WS ?= acme
 # (provisioning + joining — NOT a login bypass). Override with the handle you log in as;
 # clear it (CC_SEED_USER=) to skip seeding entirely.
 SEED_USER ?= user:ada
+
+# Login posture. PASSWORD_LOGIN=1 (the default) runs the node in the REAL argon2 credential mode
+# (CC_PASSWORD_LOGIN → BootConfig::PasswordHash): a wrong password 401s, exactly like production,
+# and email+password login (via invite→accept→set-password) actually bites. The dev admin
+# ($(SEED_USER)) is seeded a credential at boot (CC_SEED_PASSWORD=$(ADMIN_PASSWORD)) so it can still
+# log in — with that password, not password-less. Set PASSWORD_LOGIN= (empty) for the old
+# password-less DevTrustAny dev mode (any password works; the seeded credential is ignored).
+PASSWORD_LOGIN ?= 1
+# The dev admin's seeded login password (used under PASSWORD_LOGIN=1). Log into the shell as the
+# handle ($(SEED_USER:user:%=%)) with THIS password. Override for a non-default dev secret.
+ADMIN_PASSWORD ?= cc-admin-1234
 
 # All persistent local dev state lives under ONE root: `.cc-app/`. The node store, the dev
 # publisher key, and packaged artifacts are subdirs of it, so a single `rm -rf .cc-app`
@@ -93,8 +111,8 @@ EXT_ARTIFACT := $(ART_DIR)/$(EXT).artifact.json
 EXT_UI_DIST  := $(BE_DIR)/extensions/$(EXT)/ui/dist
 EXT_UI_SERVE := $(BE_DIR)/extensions-ui/$(EXT)
 
-.PHONY: setup build build-be build-ui build-ext \
-        dev cloud ui \
+.PHONY: setup build build-be build-ui build-ext build-care \
+        dev cloud ui seed e2e e2e-ui \
         pack publish-ext trusted-pubkey \
         test test-be test-ui lint fmt fmt-check size i18n-check clean kill purge-store
 
@@ -124,27 +142,56 @@ build-ui:
 # The demo loop: the cloud node (gateway mounted) + the mobile shell pointed at it, in ONE
 # foreground process group so Ctrl-C (or `make kill`) stops both. The trap reaps the children
 # on exit so no orphan keeps a port held.
-dev: trusted-pubkey
+# The care native sidecar binary the node spawns at boot. cc-node's `care_mount`
+# resolves `target/<profile>/care`; it must EXIST before the node starts or the
+# install logs "binary not found" and care.* 403s. `dev`/`cloud` build it first.
+build-care:
+	cd $(BE_DIR) && cargo build -p $(EXT)
+
+dev: trusted-pubkey build-care
 	@mkdir -p $(STORE_DIR)
-	@echo "node gateway → $(GW_URL)   ui → http://127.0.0.1:$(UI_PORT)   (ws=$(WS), store=$(STORE_PATH))"
+	@echo "node gateway → $(GW_URL)   ui → http://127.0.0.1:$(UI_PORT)   (ws=$(WS), store=$(STORE_PATH), lb-tag=$(LB_TAG))"
 	@trap 'kill 0' EXIT INT TERM; \
-	TRUSTED=$$($(BE_DIR)/target/debug/lb-pack pubkey $(KEY_FILE) --key-id $(PUBLISHER_ID)); \
-	( cd $(BE_DIR) && CC_GATEWAY_ADDR=$(GW_ADDR) CC_GATEWAY_URL=$(GW_URL) CC_WORKSPACE=$(WS) CC_STORE_PATH=$(STORE_PATH) CC_SEED_USER=$(SEED_USER) CC_TRUSTED_PUBKEYS=$$TRUSTED cargo run -p $(NODE_BIN) ) & \
+	TRUSTED=$$($(LB_PACK_BIN) pubkey $(KEY_FILE) --key-id $(PUBLISHER_ID)); \
+	( cd $(BE_DIR) && CC_GATEWAY_ADDR=$(GW_ADDR) CC_GATEWAY_URL=$(GW_URL) CC_WORKSPACE=$(WS) CC_STORE_PATH=$(STORE_PATH) CC_SEED_USER=$(SEED_USER) CC_PASSWORD_LOGIN=$(PASSWORD_LOGIN) CC_SEED_PASSWORD=$(ADMIN_PASSWORD) CC_TRUSTED_PUBKEYS=$$TRUSTED cargo run -p $(NODE_BIN) ) & \
 	( cd $(UI_DIR) && VITE_GATEWAY_URL=$(GW_URL) pnpm run dev ) & \
 	wait
 
 # CLOUD posture: the SAME binary with the SSE/HTTP gateway mounted (CC_GATEWAY_ADDR). A browser
-# can now reach it. Run `make ui` (or `make dev`) against this.
-cloud: trusted-pubkey
+# can now reach it. Run `make ui` (or `make dev`) against this. Builds the care sidecar first.
+cloud: trusted-pubkey build-care
 	@mkdir -p $(STORE_DIR)
-	@echo "cloud: node + gateway → $(GW_URL)   (ws=$(WS), store=$(STORE_PATH))"
-	TRUSTED=$$($(BE_DIR)/target/debug/lb-pack pubkey $(KEY_FILE) --key-id $(PUBLISHER_ID)); \
-	cd $(BE_DIR) && CC_GATEWAY_ADDR=$(GW_ADDR) CC_GATEWAY_URL=$(GW_URL) CC_WORKSPACE=$(WS) CC_STORE_PATH=$(STORE_PATH) CC_SEED_USER=$(SEED_USER) CC_TRUSTED_PUBKEYS=$$TRUSTED cargo run -p $(NODE_BIN)
+	@echo "cloud: node + gateway → $(GW_URL)   (ws=$(WS), store=$(STORE_PATH), lb-tag=$(LB_TAG))"
+	TRUSTED=$$($(LB_PACK_BIN) pubkey $(KEY_FILE) --key-id $(PUBLISHER_ID)); \
+	cd $(BE_DIR) && CC_GATEWAY_ADDR=$(GW_ADDR) CC_GATEWAY_URL=$(GW_URL) CC_WORKSPACE=$(WS) CC_STORE_PATH=$(STORE_PATH) CC_SEED_USER=$(SEED_USER) CC_PASSWORD_LOGIN=$(PASSWORD_LOGIN) CC_SEED_PASSWORD=$(ADMIN_PASSWORD) CC_TRUSTED_PUBKEYS=$$TRUSTED cargo run -p $(NODE_BIN)
 
 # Just the mobile shell dev server, browser build, pointed at the gateway. Pair with `make
 # cloud` in another terminal.
 ui:
 	cd $(UI_DIR) && VITE_GATEWAY_URL=$(GW_URL) pnpm run dev
+
+# Seed a RUNNING node ($(GW_URL)) with a demo login + the minimal care roster (1 center, 1 room,
+# 1 teacher, 1 guardian+child family) — all through the real mediated routes (POST /login +
+# POST /mcp/call), no direct store writes (CLAUDE.md rule 4). Idempotent: re-running skips
+# records that already exist. Needs `make dev`/`make cloud` running first, plus curl + jq.
+# Prints the seeded email/password to log in with. Override via SEED_EMAIL / SEED_PASSWORD / WS.
+seed:
+	GW_URL=$(GW_URL) WS=$(WS) ADMIN_USER=$(SEED_USER) ADMIN_PASSWORD=$(ADMIN_PASSWORD) bash scripts/seed.sh
+
+# End-to-end smoke test against a RUNNING node ($(GW_URL)) over the real gateway routes — session
+# mint, the auth wall (401/403 negatives), credential seeding, and the care roster. No mocks
+# (rule 4). Needs `make dev`/`make cloud` running first, plus curl + jq. Fails on any host-layer
+# regression; care rows are advisory until the native sidecar is wired into cc-node boot.
+e2e:
+	GW_URL=$(GW_URL) WS=$(WS) ADMIN_USER=$(SEED_USER) bash scripts/e2e.sh
+
+# Browser E2E of the shell against the RUNNING node (mobile-shell-scope §"Rule 9":
+# Playwright + a real gateway). Drives the login golden path end to end (form →
+# vite-dev-auth → cc-node /login → session cookie → workspace pick → mediated MCP
+# read of the seeded roster). Prereq: `make dev` (node + shell up) and `make seed`.
+# First run on a fresh box needs the browser: `cd ui && npx playwright install chromium`.
+e2e-ui:
+	cd $(UI_DIR) && VITE_GATEWAY_URL=$(GW_URL) CC_WORKSPACE=$(WS) CC_ADMIN_HANDLE=$(SEED_USER:user:%=%) CC_ADMIN_PASSWORD=$(ADMIN_PASSWORD) pnpm test:e2e
 
 # ---------------------------------------------------------------------------------------------------
 # Extension dev flow: build → pack (sign) → publish (upload, which installs + loads on the server).
@@ -153,22 +200,31 @@ ui:
 # publisher key lives at $(KEY_FILE) (generated on first use); its public half is trusted by the node
 # via CC_TRUSTED_PUBKEYS (the `dev`/`cloud` targets wire it from `lb-pack pubkey`).
 
-# Build the lb-pack tool (the dev packager). Cheap once built; the run targets depend on it.
-$(BE_DIR)/target/debug/lb-pack:
-	cd $(BE_DIR) && cargo build -p lb-pack
+# Install `lb-pack` at the pinned lb tag (the published toolchain shipped
+# as `node-v0.3.3` — `lb-devkit` + `lb-pack` are no longer `publish = false`,
+# so the embedder consumes them by git tag). Idempotent: a one-line re-pin
+# to a newer tag is just `LB_TAG=node-v0.3.4 make pack`. The tool lives in
+# `$(HOME)/.cargo/bin` (cargo's default install path); the targets below
+# capture that — overridable via `LB_PACK_BIN=<path>` for CI.
+LB_PACK_BIN ?= $(HOME)/.cargo/bin/lb-pack
+$(LB_PACK_BIN):
+	@if ! command -v lb-pack >/dev/null 2>&1; then \
+	  echo "→ installing lb-pack @ $(LB_TAG) (lb-pack / lb-devkit are published since node-v0.3.3)"; \
+	  cargo install --git https://github.com/NubeDev/lb --tag $(LB_TAG) lb-pack --locked; \
+	fi
 
 # Print the dev publisher's `key_id=hexpubkey` (generating the key on first run). This IS the value
 # the node wants in CC_TRUSTED_PUBKEYS; the `dev`/`cloud` targets capture it automatically.
-trusted-pubkey: $(BE_DIR)/target/debug/lb-pack
-	@$(BE_DIR)/target/debug/lb-pack pubkey $(KEY_FILE) --key-id $(PUBLISHER_ID)
+trusted-pubkey: $(LB_PACK_BIN)
+	@$(LB_PACK_BIN) pubkey $(KEY_FILE) --key-id $(PUBLISHER_ID)
 
 # Build the care extension and package it into a signed artifact at $(EXT_ARTIFACT). Pure local:
 # produces the file the UI can upload OR `make publish-ext` can POST.
-pack: $(BE_DIR)/target/debug/lb-pack
+pack: $(LB_PACK_BIN)
 	@echo "→ building care extension"
 	cd $(BE_DIR)/extensions/$(EXT) && cargo build --release
 	@mkdir -p $(ART_DIR)
-	$(BE_DIR)/target/debug/lb-pack $(EXT_MANIFEST) $(KEY_FILE) \
+	$(LB_PACK_BIN) $(EXT_MANIFEST) $(KEY_FILE) \
 		--key-id $(PUBLISHER_ID) --out $(EXT_ARTIFACT)
 
 # Publish $(EXT) to a RUNNING node ($(GW_URL)): pack it, log in for a session token (the dev-login

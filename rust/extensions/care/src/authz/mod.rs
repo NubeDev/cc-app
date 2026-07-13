@@ -53,13 +53,15 @@ pub mod host_callback;
 pub mod principal;
 mod records;
 mod scope;
+pub mod store;
 
 use lb_auth::Principal;
 
 pub use deny::{AuthzError, ReachDecision};
 pub use host_callback::{ReachClient, ReachFilter};
 pub use records::{Edge, Guardian, StaffAssignment};
-pub use scope::{edge_id, Scope};
+pub use scope::{canonical_subject, edge_id, Scope};
+pub use store::{RecordError, RecordStore};
 
 use std::sync::Arc;
 
@@ -97,6 +99,12 @@ pub struct Chokepoint {
     /// `None` ⇒ fall back to the era-1 store resolution. Not part of the
     /// `PartialEq`/`Debug` surface — it holds an HTTP client.
     reach: Option<ReachClient>,
+    /// The record read/write seam every verb body reaches domain records
+    /// through (Part B). `Callback` in production (the node's durable store is
+    /// the ONE source of truth, reached over `store.*` on the host callback);
+    /// `Local` on the era-1 / unit-test path (the in-process `store` above).
+    /// Constructed once here so no verb ever decides the backend.
+    records: RecordStore,
 }
 
 impl Chokepoint {
@@ -106,9 +114,14 @@ impl Chokepoint {
     /// module doc). Use [`Chokepoint::with_host_callback`] for the live
     /// era-2 platform path.
     pub fn new(store: Arc<lb_store::Store>, ws: impl Into<String>) -> Self {
+        let ws = ws.into();
         Self {
+            records: RecordStore::Local {
+                store: store.clone(),
+                ws: ws.clone(),
+            },
             store,
-            ws: ws.into(),
+            ws,
             reach: None,
         }
     }
@@ -122,10 +135,20 @@ impl Chokepoint {
         ws: impl Into<String>,
         reach: ReachClient,
     ) -> Self {
+        let ws = ws.into();
+        // Records go over the SAME host callback the reach client rides — one
+        // client, both directions (reach questions AND record CRUD). The node's
+        // durable store is the source of truth; the carried `store` stays only
+        // for any era-1 fallback the reach path may still need.
+        let records = RecordStore::Callback {
+            client: reach.client().clone(),
+            ws: ws.clone(),
+        };
         Self {
             store,
-            ws: ws.into(),
+            ws,
             reach: Some(reach),
+            records,
         }
     }
 
@@ -135,6 +158,15 @@ impl Chokepoint {
     /// the SAME host-callback client.
     pub fn reach(&self) -> Option<&ReachClient> {
         self.reach.as_ref()
+    }
+
+    /// The record read/write seam every verb body reaches domain records
+    /// through (Part B). Verb bodies MUST use this, never `cp.store` directly —
+    /// `cp.store` is the era-1 chokepoint's own resolution store and is NOT the
+    /// node's durable store when this sidecar runs spawned (the callback store
+    /// is). One accessor so the backend choice lives here, once.
+    pub fn records(&self) -> &RecordStore {
+        &self.records
     }
 }
 
@@ -176,7 +208,12 @@ pub async fn assert_reach(
     // on `guardianship.link` (`care-authz-scope.md` §"Era 2"). A callback
     // error (misconfigured extension grant, host unreachable) fails CLOSED.
     if let Some(reach) = cp.reach() {
-        return match reach.reaches(child_id).await {
+        // Ask ABOUT the caller (native-caller-identity scope): `subject` is
+        // the guardian's own auth subject, projected from the native call
+        // frame the host stamped. The host resolves THAT subject's scoped
+        // reach grants (derived on `guardianship.link`), authorized by the
+        // extension's `mcp:authz.delegate_reach:call` install grant.
+        return match reach.reaches(principal.sub(), child_id).await {
             Ok(true) => Ok(()),
             Ok(false) => Err(AuthzError::Denied {
                 reason: "no scoped reach grant (platform)",
@@ -221,7 +258,10 @@ pub async fn reachable_children(cp: &Chokepoint, principal: &Principal) -> Vec<S
     // practice this is the `Ids` set. A callback error resolves to empty
     // (list-verbs deny by returning zero rows — never an error, never a leak).
     if let Some(reach) = cp.reach() {
-        return match reach.reachable().await {
+        // `subject` = the caller's own auth subject (frame caller). The host
+        // returns that guardian's reachable-child set (the union of their
+        // scoped reach grants), resolved behind the extension's delegation cap.
+        return match reach.reachable(principal.sub()).await {
             Ok(ReachFilter::Ids(ids)) => ids,
             Ok(ReachFilter::All) => vec!["*".to_string()],
             Err(_) => Vec::new(),

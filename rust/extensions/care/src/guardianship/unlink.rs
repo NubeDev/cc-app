@@ -15,7 +15,6 @@
 //! the chokepoint denies on `live == false` on the very next call.
 
 use lb_auth::Principal;
-use lb_store::{read, write as store_write};
 
 use crate::authz::{grant, Chokepoint};
 use crate::center::Locale;
@@ -42,37 +41,43 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .map_err(|e| format!("invalid care.guardianship.unlink input: {e}"))?;
     let locale = Locale::parse(parsed.locale.as_deref().unwrap_or("en")).unwrap_or(Locale::En);
 
-    let id = edge_id(&parsed.guardian_sub, &parsed.child_id);
+    // Canonicalise the subject to the auth-subject form so the edge id + the
+    // era-2 grant subject match what `link` derived (see `authz::canonical_subject`).
+    let guardian_sub = crate::authz::canonical_subject(&parsed.guardian_sub);
+    let id = edge_id(&guardian_sub, &parsed.child_id);
 
     // Load the edge (must exist to unlink).
-    let mut row = read(&cp.store, &cp.ws, "guardianship", &id)
+    let mut row = cp
+        .records()
+        .read("guardianship", &id)
         .await
         .map_err(|_| format!("{}", GuardianshipError::StoreDenied("unlink read".into())))?
         .ok_or_else(|| format!("{}", GuardianshipError::NotFound(id.clone())))?;
 
     // 1) Archive the edge (live → false). Retained for audit.
     row["live"] = serde_json::Value::Bool(false);
-    store_write(&cp.store, &cp.ws, "guardianship", &id, &row)
+    cp.records()
+        .write("guardianship", &id, &row)
         .await
-        .map_err(|e| format!("{}: {e}", GuardianshipError::StoreDenied("unlink write".into())))?;
+        .map_err(|e| {
+            format!(
+                "{}: {e}",
+                GuardianshipError::StoreDenied("unlink write".into())
+            )
+        })?;
 
     // 2) Revoke the derived scoped grant (era 2). If revoke fails, RESTORE
     //    the edge to live — edge-and-grant stays all-or-nothing, and a
     //    surviving grant never outlives a live-looking edge (fail loud).
     if let Some(reach) = cp.reach() {
-        if let Err(e) =
-            grant::remove_reach(reach.client(), &parsed.guardian_sub, &parsed.child_id).await
-        {
+        if let Err(e) = grant::remove_reach(reach.client(), &guardian_sub, &parsed.child_id).await {
             // Restore the edge to live so edge + grant never diverge. If the
             // restore ITSELF fails, surface it LOUDLY via the typed `Diverged`
             // error: a `live=false` edge with a SURVIVING grant is the
             // existential cross-family LEAK — the admin must retry, never a
             // silent swallow. Words live in the error Display (records.rs).
             row["live"] = serde_json::Value::Bool(true);
-            let err = if store_write(&cp.store, &cp.ws, "guardianship", &id, &row)
-                .await
-                .is_ok()
-            {
+            let err = if cp.records().write("guardianship", &id, &row).await.is_ok() {
                 GuardianshipError::GrantDerivationFailed(e.to_string())
             } else {
                 GuardianshipError::GrantDerivationDiverged {
@@ -89,10 +94,7 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         message: t(
             locale,
             "guardian.unlinked",
-            &[
-                ("guardian", &parsed.guardian_sub),
-                ("child", &parsed.child_id),
-            ],
+            &[("guardian", &guardian_sub), ("child", &parsed.child_id)],
         ),
     };
     serde_json::to_string(&reply).map_err(|e| format!("serialize reply: {e}"))
@@ -154,7 +156,9 @@ mod tests {
         .expect("link");
 
         let ana = member(&key, "user:ana", "acme");
-        assert_reach(&cp, &ana, "child:leo").await.expect("reach pre-unlink");
+        assert_reach(&cp, &ana, "child:leo")
+            .await
+            .expect("reach pre-unlink");
 
         run(
             &cp,

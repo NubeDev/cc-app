@@ -14,18 +14,23 @@
 //!
 //! ## Wire shapes (lb `authz.check_scoped` / `authz.scope_filter`)
 //!
-//! - `authz.check_scoped { cap, table, id }` → `{ "allowed": bool }`
-//! - `authz.scope_filter { cap, table }` → `{ "filter": "all" }`
+//! - `authz.check_scoped { cap, table, id, subject }` → `{ "allowed": bool }`
+//! - `authz.scope_filter { cap, table, subject }` → `{ "filter": "all" }`
 //!   or `{ "filter": { "ids": [...] } }`
 //!
-//! The principal is the CALLER's own (derived from the child's scoped
-//! `LB_EXT_TOKEN`) — these verbs never accept a `user` argument, so the
-//! callback can only ever learn its OWN reach. But the care chokepoint asks
-//! reach questions ABOUT a guardian principal, not about the extension's own
-//! token. That is why the scoped grants are keyed to the **guardian's**
-//! subject (derived on `guardianship.link`) and the chokepoint reads them
-//! back through [`ReachClient`] with the guardian's identity carried in the
-//! grant, resolved host-side. See `care-authz-scope.md` §"Era 2".
+//! ## Reach ABOUT the caller (native-caller-identity scope, node-v0.4.0)
+//!
+//! The sidecar's callback token is the EXTENSION's identity, not the
+//! guardian's — so a bare `check_scoped` would only ever learn the
+//! extension's own reach. `node-v0.4.0` closed this: the reach verbs gained
+//! an optional `subject`, and a caller holding the delegation cap
+//! `mcp:authz.delegate_reach:call` may name it — the host then resolves
+//! THAT subject's scoped grants instead of the caller's. The care extension
+//! requests exactly that delegation cap at install; the chokepoint passes
+//! `subject = <the frame caller's sub>` (a guardian's `user:<x>`, projected
+//! from the native call frame). So the reach question is genuinely ABOUT the
+//! guardian who made the call — rule 7 enforced in-sidecar. See
+//! `care-authz-scope.md` §"Era 2" + `native-caller-identity-scope.md`.
 
 use lb_ext_native::{CallError, SidecarClient};
 use serde_json::{json, Value};
@@ -61,38 +66,39 @@ impl ReachClient {
         Self { client }
     }
 
-    /// `authz.check_scoped { cap: REACH_CAP, table: "child", id }` for
-    /// `guardian_sub` — may that guardian reach `child_id`? The scoped grant
-    /// derived on `guardianship.link` carries the guardian's reach under
-    /// [`REACH_CAP`]; the host resolves the caller's grants and answers.
+    /// `authz.check_scoped { cap: REACH_CAP, table: "child", id, subject }` —
+    /// may `subject` (the guardian who made the call, projected from the frame
+    /// caller) reach `child_id`? The scoped grant derived on
+    /// `guardianship.link` carries THAT guardian's reach under [`REACH_CAP`];
+    /// the host resolves `subject`'s grants (authorized by the extension's
+    /// `mcp:authz.delegate_reach:call` install grant) and answers.
     ///
     /// A `403` (`CallError::Denied`) is NOT a reach answer — it means the
-    /// EXTENSION's own token lacks `mcp:authz.check_scoped:call`, a
-    /// misconfiguration; it surfaces as an `Err` so the chokepoint fails
-    /// CLOSED (deny), never silently allows.
-    pub async fn reaches(&self, child_id: &str) -> Result<bool, CallError> {
+    /// EXTENSION's own token lacks `mcp:authz.check_scoped:call` or the
+    /// delegation cap, a misconfiguration; it surfaces as an `Err` so the
+    /// chokepoint fails CLOSED (deny), never silently allows.
+    pub async fn reaches(&self, subject: &str, child_id: &str) -> Result<bool, CallError> {
         let out = self
             .client
             .call_tool(
                 "authz.check_scoped",
-                json!({ "cap": REACH_CAP, "table": REACH_TABLE, "id": child_id }),
+                json!({ "cap": REACH_CAP, "table": REACH_TABLE, "id": child_id, "subject": subject }),
             )
             .await?;
-        Ok(out
-            .get("allowed")
-            .and_then(Value::as_bool)
-            .unwrap_or(false))
+        Ok(out.get("allowed").and_then(Value::as_bool).unwrap_or(false))
     }
 
-    /// `authz.scope_filter { cap: REACH_CAP, table: "child" }` — which
-    /// children does the caller reach? Translates the wire `{"filter":"all"}`
-    /// / `{"filter":{"ids":[...]}}` into [`ReachFilter`].
-    pub async fn reachable(&self) -> Result<ReachFilter, CallError> {
+    /// `authz.scope_filter { cap: REACH_CAP, table: "child", subject }` —
+    /// which children does `subject` (the frame caller's guardian) reach?
+    /// Translates the wire `{"filter":"all"}` / `{"filter":{"ids":[...]}}`
+    /// into [`ReachFilter`]. `subject` is resolved host-side behind the
+    /// extension's delegation cap (native-caller-identity scope).
+    pub async fn reachable(&self, subject: &str) -> Result<ReachFilter, CallError> {
         let out = self
             .client
             .call_tool(
                 "authz.scope_filter",
-                json!({ "cap": REACH_CAP, "table": REACH_TABLE }),
+                json!({ "cap": REACH_CAP, "table": REACH_TABLE, "subject": subject }),
             )
             .await?;
         match out.get("filter") {

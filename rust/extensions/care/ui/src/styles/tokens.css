@@ -17,6 +17,7 @@
  * This file is the ONLY source of truth for which shadcn variables the
  * extension references. Adding a new color in an ext component = adding
  * a new var here, NEVER a hardcoded hex.
+ */
 
 [data-ext-root] {
   /* The host's shadcn variables cascade in via CSS custom properties —
