@@ -321,6 +321,46 @@ releases?" check (WORKFLOW-LB.md §4). (Milestone 00 originally dropped the patc
 `node-v0.3.0`; the `*-v0.4.x` local-tag posture was reintroduced for the admin-marker +
 credential-mode work and is intentional until those tags are pushed.)
 
+## ⛔ BUILD BLOCKED (2026-07-13) — cannot build from published tags
+
+A fresh session cannot `cargo build`/`test`: the declared pins say `node-v0.4.2`
+but the remotes hold ONLY `node-v0.4.0` (`NubeDev/lb`) + `sdk-v0.4.0`
+(`NubeDev/lb-ext-sdk`). The `*-v0.4.1`/`v0.4.2` tags (admin-marker +
+credential-mode) were **never pushed** — they lived only as local sibling tags +
+a git-ignored `[patch]`, neither of which survives into this environment. AND
+cc-app's shipped `principal_from_caller` reads `caller.admin`, a field that does
+NOT exist on `sdk-v0.4.0`'s `Caller` (it is the unpushed `sdk-v0.4.1` addition) —
+so even repointing pins to `node-v0.4.0` won't compile. Deriving admin from
+`caller.role` instead is a rule-7 regression (role is cosmetic `member` for
+everyone). **Genuine fix is lb/SDK-owned: push `sdk-v0.4.1` + `node-v0.4.1/0.4.2`,
+then drop the recreated `[patch]`.** Full analysis + the `[patch]` recreation
+recipe + sibling prerequisites: [`debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md`](debugging/build/unbuildable-from-releases-unpushed-v0.4.1-tags.md).
+
+## Milestone 08 (daily-feed) — STARTED (foundation only, un-compiled)
+
+The orchestrator-owned foundation is written (fence-clean: authz + hardcoded +
+file-size gates green; NOT yet compiled — see the build block above):
+- `log/records.rs` — the `daily_log` schema (8 types, type-specific payloads:
+  nap start/end, meal slot+portion, incident required what/where/action + ack,
+  medication dose+witness), `LogKind::validate` (regulated-field enforcement),
+  `PushPolicy` (incident/medication = Always, else FeedThenPrefs), the
+  `feed_subject(child)` = `care.feed.<child>` bus contract, `validate_timestamp`.
+- `authz::feed_recipients` (in `authz/scope.rs` behind the grep fence) — the
+  LIVE-`receives_daily_feed`-edge holder set for a child (the emit + push
+  recipient resolution; a `false`/unlinked edge gets neither).
+- `push/mod.rs` — the pure type→notification `decide()` policy + the
+  `notify.send` catalog-key/deep-link shape (localization is lb's job per
+  recipient via `title_key`/`body_key` — the both-languages exit gate).
+
+**NEXT (once the build is unblocked):** the verbs (`log.add` multi-child atomic
+fan-out + bus emit + push dispatch; `log.list` cursor-paged role-filtered;
+`log.correct`; `log.day` rollup; `feed.watch` SSE), the media photo path
+(begin/commit + reach-checked serve + consent-at-write), the attendance→feed bus
+emit (m06 deferral), dispatcher/TOOLS/caps wiring, the en+es catalog keys, the
+guardian Feed + staff two-tap UI, and the matrix rows (incl. the media-URL leak).
+The wire seams are confirmed present in lb: `bus.publish`, `notify.send`,
+`media.upload_begin/commit/get` — all reachable over the same `SidecarClient`.
+
 ## Next up
 
 **Milestone 08 — daily-feed** (care ext + `ui/`): the family-facing feed a

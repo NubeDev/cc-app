@@ -42,10 +42,13 @@ pub mod attendance;
 pub mod center;
 pub mod child;
 pub mod enrollment;
+pub mod feed;
 pub mod guardian;
 pub mod guardianship;
 pub mod invite;
+pub mod log;
 pub mod menu;
+pub mod push;
 pub mod room;
 
 // re-exported by the binary; left out of the lib so the only platform
