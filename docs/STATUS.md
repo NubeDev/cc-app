@@ -2,7 +2,68 @@
 
 _The single "where are we" dashboard. Read at the start of a session; update at the end._
 
-**Date:** 2026-07-13 (real EMAIL + PASSWORD login LIVE — `node-v0.4.2`, local tag;
+**Date:** 2026-07-13 — **🎉 PHASE 1 SHIPPED.** All 11 milestones (00–10) closed.
+The product is buildable from published tags (`node-v0.4.3` / `sdk-v0.4.1`, no
+`[patch]`), guardian isolation is enforced end to end on a real node (the edge-change
+drill), en/es parity holds, and the public docs are promoted. Remaining items are
+launch-checklist carries (a real device, a human es-review, and lb#52), not phase-1
+blockers — see the **Milestone 10** section below.
+
+## Milestone 10 (hardening / launch) — CLOSED (2026-07-13) — PHASE 1 SHIPPED
+
+The final phase-1 milestone. Session:
+[`sessions/care/10-hardening-launch-session.md`](sessions/care/10-hardening-launch-session.md).
+
+- **lb pin `node-v0.4.3`** (NubeDev/lb#49 — subject-scoped `bus:<subject>:watch` +
+  revoke-terminates-stream) bumped at all sites; the `.cargo/config.toml` `[patch]`
+  RETIRED — `cargo build --workspace` clean from pushed tags (WORKFLOW-LB §4). SDK
+  pin stays `sdk-v0.4.1`.
+- **`feed.watch` → full platform stream isolation.** `feed::watch_grant` mints
+  `bus:care.feed.<child>:watch` per daily-feed guardian on link, revokes on unlink
+  (terminating the open SSE stream within a 3s tick) + re-derives on flip in update.
+  Wildcard hold `bus:care.feed.**:watch` lock-step. Debug doc
+  `bus-watch-unscoped-and-no-midstream-revoke.md` → RESOLVED.
+- **The edge-change drill** (`matrix_edge_change.rs`, live sidecar, `--ignored`): unlink
+  Ana↔Leo ⇒ child.get 403, feed.watch 403, log.list empty, grants revoked. The
+  existential-bug exit gate — GREEN.
+- **Matrix-sweep completeness gate** (`matrix_completeness.rs`): every `care::call::TOOLS`
+  verb (44) has a declared cross-family coverage or CI fails; the guardian-read census
+  is pinned so the sacred set can't shrink silently.
+- **archive → stop-posts** (m09 deferral): an archived child's channel derives NO
+  members (frozen) + `child.archive` revokes live members. Unit-tested.
+- **Two cc-app bugs found + fixed via the drill:** (1) the channel wildcard
+  `bus:chan/care-**` never matched a `-`-joined id (grammar splits on `/`/`.`, not `-`)
+  → switched to `.`-separated channel ids `care.child.<id>` held as `bus:chan/care.**`;
+  (2) four verbs (`channel.reconcile`, `announce.post`, `media.begin`, `media.commit`)
+  had no `[[tools]]` manifest block → unrouted "no such tool" on a live node → added
+  the blocks + the missing `approved_grant` entries. Both proven on the live node.
+- **One lb gap filed (fix lb generically):** **NubeDev/lb#52** — `channel.create` is
+  not wired into lb's MCP dispatch (`call_channel_tool` has no `create` arm → NotFound
+  before any cap check). Blocks live-node channel PROVISIONING; the leak-critical
+  membership grant/revoke + the drill are unaffected. Debug doc
+  `channel-wildcard-hold-does-not-match-hyphen-ids.md`.
+- **Docs promoted:** `doc-site/content/public/care/care.md` + `ui/ui.md` filled with the
+  shipped phase-1 product.
+- **Green:** `cargo fmt --check`; 4 fences (200 files ≤400); `cargo test -p care` 17
+  bins all ok (215 lib + all matrix incl. completeness); `--ignored` live_node + drill
+  ok; `cargo build --workspace` clean from tags; care UI `tsc` + i18n + `pnpm build`.
+
+### Launch-checklist carries (NOT phase-1 blockers)
+
+- **lb#52** → bump the pin once shipped, then the drill asserts full channel
+  provision+read+post+unlink-revoke.
+- **Staff room-move reconcile** — needs a NEW `staff.reassign` verb (new scope, not a
+  fix); out of m10's fix-only charter. Assignments are minted only via invite-accept
+  today.
+- Persona acceptance on a real 360px phone + 1280px laptop, both themes; human es-review;
+  photo-heavy-feed + cold-PWA/flaky-network perf; ext-UI channel SSE (needs ext-ui-sdk
+  origin/token; polls `channel.history` today). Master-scope open questions
+  (naming/branding, PWA-vs-RN, staff-tablet offline, billing provider) — carry.
+
+---
+
+**Prior date context (superseded by the phase-1-shipped banner above):** real EMAIL +
+PASSWORD login LIVE — `node-v0.4.2`, local tag;
 rule 7 enforced in-sidecar — `node-v0.4.0`/`sdk-v0.4.0`; admin-pass fixed via the
 caller `admin` marker — `node-v0.4.1`/`sdk-v0.4.1`. Release ritual pending: `*-v0.4.x`
 tags cut locally + proven via `[patch]`, NOT yet pushed)
@@ -460,24 +521,15 @@ The wire seams are confirmed present in lb: `bus.publish`, `notify.send`,
 
 ## Next up
 
-**Milestone 10 — hardening / PWA install path** (the final phase-1 milestone).
-It is where the accumulated deferrals land:
+**Phase 1 is shipped (milestone 10 CLOSED — see the top of this file).** What's next
+is NOT a phase-1 milestone:
 
-- **m08**: the lb `bus.watch` per-subject scoping + mid-stream revoke fix, then
-  `feed.watch` full stream isolation; the live-node motion E2E (two-tap → PWA
-  live → locked-phone push; es-locale feed UI run).
-- **m09**: archive→stop-posts wiring; the staff room-move reconcile (once a
-  staff-reassignment verb exists); ext-UI channel SSE (once the runtime exposes a
-  gateway origin/token — poll-history bridges it today).
-
-The prior m10 note (kept below for reference):
-
-1. The lb `bus.watch` per-subject scoping + mid-stream revoke fix
-   (`docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md`) —
-   lb work first, then `feed.watch` upgrades from reach-check-at-subscribe to
-   full stream isolation + unlink-terminates.
-2. The live-node E2E: staff two-tap (with photo) → guardian PWA appends live →
-   locked phone push record; the once-through es-locale feed UI run.
+- **Launch checklist** (carries recorded in the Milestone 10 section): lb#52 pin bump;
+  persona acceptance on real devices; human es-review; perf passes; ext-UI channel SSE.
+- **Phase 2 begins with billing** (built last, as its own `care-billing` extension —
+  re-scope it first, `scope/billing/billing-scope.md`). Then: staff room-move (needs a
+  `staff.reassign` verb), kiosk PIN self-check-in, video (needs lb media Range),
+  admissions forms, reports.
 
 ## Non-goals (unchanged)
 
