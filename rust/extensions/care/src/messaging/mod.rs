@@ -14,8 +14,10 @@
 //! - the reach-fenced membership derivation lives in `authz::channel_members`
 //!   (it reads `guardianship` — a fence concern; see `authz/`).
 
+pub mod announce;
 pub mod channel_id;
 pub mod reconcile;
+pub mod reconcile_verb;
 
 pub use channel_id::{
     center_channel, child_channel, pub_cap, room_channel, sub_cap, ChannelRole,

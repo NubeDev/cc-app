@@ -98,6 +98,9 @@ request = [
     # the photo upload boundary (reject video, delegate to lb media.upload_*)
     "mcp:care.media.begin:call",
     "mcp:care.media.commit:call",
+    # milestone 09 — messaging (channel provisioning + membership reconciliation)
+    "mcp:care.channel.reconcile:call",
+    "mcp:care.announce.post:call",
 
     # 2. generic store surface (Part B — record I/O over the host callback)
     "mcp:store.write:call",
@@ -135,6 +138,20 @@ request = [
     # wildcard (`caps/grammar.rs` `**` matches `media/{id}`). It is the granter
     # cap for `media::serve_grant`, not a verb the sidecar serves.
     "store:media/**:read",
+
+    # milestone 09 — messaging: the channel host surface (provision + post over
+    # the callback) + the pub/sub wildcard HOLDS. lb channels split the authority
+    # (post = bus:chan/{cid}:pub, read = :sub); the sidecar holds the recursive
+    # `care-**` wildcards so grants_assign's no-widening rule lets it mint a
+    # per-channel `bus:chan/care-child-<id>:sub`/`:pub` for members (the
+    # `store:media/**:read` idiom). Read-only membership = granting :sub without
+    # :pub — the announcements policy, no care hack.
+    "mcp:channel.create:call",
+    "mcp:channel.post:call",
+    "mcp:channel.history:call",
+    "mcp:channel.list:call",
+    "bus:chan/care-**:pub",
+    "bus:chan/care-**:sub",
 
     # 3. era-2 reach + grant derivation + invites (host-callback verbs)
     "mcp:authz.check_scoped:call",

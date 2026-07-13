@@ -78,6 +78,13 @@ const COVERED_VERBS: &[&str] = &[
     // malformed-input reject at `commit`.
     "media.begin",
     "media.commit",
+    // Milestone 09 — messaging. The cross-family channel deny sweep (Ana posts in
+    // Leo's channel → Mia's-mum never sees it; Ana has no path to Mia's channel;
+    // unlink → membership revoked; guardian announcement post denied) is in
+    // `tests/matrix_messaging.rs`; per-verb in-file tests cover the reconcile
+    // no-op path + the announce input guards.
+    "channel.reconcile",
+    "announce.post",
 ];
 
 #[test]

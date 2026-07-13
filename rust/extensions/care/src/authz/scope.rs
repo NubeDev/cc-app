@@ -247,30 +247,29 @@ pub async fn resolve_child_channel_members(cp: &Chokepoint, child_id: &str) -> V
     dedupe_members(members)
 }
 
-/// Derive the membership of a ROOM channel (`care-room-<room_id>`): the room's
-/// staff + the messaging-enabled guardians of every child currently in the room
-/// — all FULL members. Same fail-closed + fence posture as the child channel.
+/// Derive the STAFF membership of a ROOM channel (`care-room-<room_id>`) — the
+/// room's assigned staff, all FULL members. Same fail-closed + fence posture as
+/// the child channel.
+///
+/// ## Why staff-only here (guardians are event-driven, not derived)
+///
+/// The generic store `list` returns a row's DATA, never its key, and the `child`
+/// record carries no `id` field — so a room cannot enumerate "its children" (and
+/// thus their guardians) by derivation. That is fine: guardian room-membership is
+/// reconciled at the PLACEMENT event, where the child id IS known (the enrollment/
+/// room-move handler calls `grant_membership` for the child's messaging guardians
+/// on the room channel). The derivation's job is the STAFF set (the stable
+/// broadcast authors); the per-placement handler owns the guardian folding. A
+/// healing sweep over a room reconciles staff; a per-child sweep reconciles that
+/// child's guardians onto both channels.
 pub async fn resolve_room_channel_members(cp: &Chokepoint, room_id: &str) -> Vec<ChannelMember> {
-    let mut members: Vec<ChannelMember> = room_staff(cp, room_id)
-        .await
-        .into_iter()
-        .map(|subject| ChannelMember { subject, full: true })
-        .collect();
-
-    // Guardians of the room's children (a child lists its room via `room_id`).
-    if let Ok(children) = list(&cp.store, &cp.ws, "child", "room_id", room_id).await {
-        for child in children {
-            if let Some(cid) = child.get("id").and_then(|v| v.as_str()) {
-                for m in resolve_child_channel_members(cp, cid).await {
-                    // Only carry the guardian half here (staff already added
-                    // once from the room); dedupe merges the overlap anyway.
-                    members.push(m);
-                }
-            }
-        }
-    }
-
-    dedupe_members(members)
+    dedupe_members(
+        room_staff(cp, room_id)
+            .await
+            .into_iter()
+            .map(|subject| ChannelMember { subject, full: true })
+            .collect(),
+    )
 }
 
 /// The `child.room_id` for a child (None if unenrolled or missing). Behind the
