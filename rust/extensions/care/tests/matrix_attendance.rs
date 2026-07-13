@@ -1,23 +1,8 @@
-//! Cross-family + pickup-gate + kiosk deny sweep for the `care.attendance.*`
-//! verbs (milestone 06 — the mandatory rule-7 + child-safety gate).
-//!
-//! On a REAL `Store::memory()` seeded via the real write path, this exercises
-//! the four attendance verb bodies end to end:
-//!
-//! - **`list`** — the RULE-7 cross-family row: a guardian sees ONLY their
-//!   reached child's events, never another family's (a leak here is the worst
-//!   bug this product has).
-//! - **`check_out`** — the child-safety pickup gate: a stranger is HARD-DENIED
-//!   with no event written; an authorized-pickup NAME or a `can_pickup`
-//!   guardian is allowed; a `can_pickup:false` guardian is denied; an admin
-//!   `pickup_override` proceeds and is AUDITED on the event.
-//! - **`now`** — the derived read across an in→out sequence (children:1 → 0).
-//! - **`list`** (staff scope) — a staff member sees only their assigned room's
-//!   events, never another room's.
-//!
-//! Guardian WRITEs (check_in / check_out) are cap-gated at the host wall — a
-//! guardian holds no such cap so never reaches the body; the guardian row here
-//! is therefore the `list` reach filter (the surface a guardian DOES touch).
+//! Cross-family + pickup-gate + kiosk deny sweep for `care.attendance.*` (m06 —
+//! the rule-7 + child-safety gate). On a REAL `Store::memory()` seeded via the
+//! real write path: `list` (rule-7 cross-family + staff room-scope), `check_out`
+//! (the pickup gate — stranger denied, named/`can_pickup` allowed, admin override
+//! audited), `now` (the in→out fold). Guardian writes are cap-gated at the wall.
 
 mod common;
 
@@ -32,17 +17,11 @@ use common::{principal, ANA, KOAL, LEO, MIA, POSS, SAM, WS};
 const ADMIN: &str = "user:admin-a";
 const TEACH: &str = "user:teacher";
 
-/// Seed the attendance fixture on a fresh store via the real write path:
-/// children Leo (reached by Sam+Ana) and Mia (reached by Sam only); edges
-/// with can_pickup flags (Sam→Leo can_pickup, Ana→Leo NOT can_pickup); Leo's
-/// child record carries an authorized-pickup name ("Grandma Jo"); a staff
-/// assignment for the teacher to Possums.
+/// Seed: Leo (Sam+Ana), Mia (Sam); edges (Sam→Leo pickup, Ana→Leo NOT); Leo has an authorized-pickup "Grandma Jo"; teacher→Possums.
 async fn seed() -> (Arc<Store>, lb_auth::SigningKey) {
     let store = Arc::new(Store::memory().await.expect("mem store"));
     let key = lb_auth::SigningKey::generate();
 
-    // Children — Leo carries the authorized-pickup name; ids match the edge
-    // child_id form so the chokepoint reach set and record ids agree.
     store_create(
         &store,
         WS,
@@ -69,7 +48,6 @@ async fn seed() -> (Arc<Store>, lb_auth::SigningKey) {
     .await
     .expect("seed mia");
 
-    // Guardian records so name-based authorization can resolve a display name.
     store_create(
         &store,
         WS,
@@ -89,8 +67,7 @@ async fn seed() -> (Arc<Store>, lb_auth::SigningKey) {
     .await
     .expect("seed ana");
 
-    // Edges with can_pickup: Sam→Leo {live,can_pickup}; Ana→Leo
-    // {live, NOT can_pickup}; Sam→Mia {live,can_pickup} (Sam reaches Mia too).
+    // Edges: Sam→Leo {live,can_pickup}; Ana→Leo {live, NOT}; Sam→Mia {live,pickup}.
     for (g, c, can) in [(SAM, LEO, true), (ANA, LEO, false), (SAM, MIA, true)] {
         let id = format!("{g}::{c}");
         store_create(
@@ -104,7 +81,6 @@ async fn seed() -> (Arc<Store>, lb_auth::SigningKey) {
         .expect("seed edge");
     }
 
-    // Staff assignment: the teacher is assigned to Possums (not Koalas).
     store_create(
         &store,
         WS,
@@ -141,11 +117,7 @@ async fn seed_event(
     .expect("seed event");
 }
 
-// -- 1. RULE-7 cross-family list row (the mandatory row) ------------------
-
-/// Ana reaches Leo only. `attendance.list` must return ONLY Leo's events and
-/// NEVER Mia's, even though both families' rows share one ledger. This is the
-/// worst-bug-in-the-product deny row.
+/// Ana reaches Leo only: `attendance.list` returns ONLY Leo's events, never Mia's (worst-bug deny row).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn guardian_cannot_check_in() {
     let (store, key) = seed().await;
@@ -194,8 +166,6 @@ async fn guardian_cannot_check_in() {
     }
 }
 
-// -- 2-5. The pickup safety gate on check_out -----------------------------
-
 fn checkout(collector_name: &str, collector_sub: Option<&str>, override_: bool) -> String {
     let sub = collector_sub
         .map(|s| format!(r#","collector_sub":"{s}""#))
@@ -210,8 +180,7 @@ fn checkout(collector_name: &str, collector_sub: Option<&str>, override_: bool) 
     )
 }
 
-/// A collector who is neither a `can_pickup` guardian nor a named
-/// authorized-pickup entry is HARD-DENIED — and NO event is written.
+/// A non-`can_pickup`, non-named collector is HARD-DENIED — no event written.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn stranger_pickup_is_hard_denied() {
     let (store, key) = seed().await;
@@ -241,8 +210,7 @@ async fn stranger_pickup_is_hard_denied() {
     );
 }
 
-/// A named authorized-pickup entry ("Grandma Jo") on the child record is
-/// allowed — the event is written.
+/// A named authorized-pickup ("Grandma Jo") is allowed — the event is written.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn authorized_pickup_by_name_allowed() {
     let (store, key) = seed().await;
@@ -269,8 +237,7 @@ async fn authorized_pickup_by_name_allowed() {
     assert_eq!(ev["kind"], "check_out");
 }
 
-/// Ana holds a live guardianship edge to Leo but with `can_pickup:false` — she
-/// may NOT collect. The gate denies and no event is written.
+/// Ana has a live edge to Leo but `can_pickup:false` — the gate denies, no event.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn non_can_pickup_guardian_denied() {
     let (store, key) = seed().await;
@@ -295,8 +262,7 @@ async fn non_can_pickup_guardian_denied() {
     );
 }
 
-/// An admin may release past a failed gate with `pickup_override:true`; the
-/// released event records `pickup_override:true` for the audit trail.
+/// An admin releases past a failed gate with `pickup_override:true` (audited on the event).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn admin_override_is_audited() {
     let (store, key) = seed().await;
@@ -331,10 +297,7 @@ async fn admin_override_is_audited() {
     );
 }
 
-// -- 6. Derived `now` across an in→out sequence ---------------------------
-
-/// check_in Leo ⇒ Possums shows children:1; check_out Leo (as an authorized
-/// collector) ⇒ children:0. Proves the derived occupancy read folds the ledger.
+/// check_in Leo ⇒ children:1; check_out ⇒ children:0 (the derived occupancy fold).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn now_reflects_in_then_out() {
     let (store, key) = seed().await;
@@ -347,7 +310,6 @@ async fn now_reflects_in_then_out() {
         &["mcp:care.attendance.now:call"],
     );
 
-    // Check IN Leo via the real write path (staff/kiosk tap shape).
     seed_event(
         &store,
         "in:leo",
@@ -365,7 +327,6 @@ async fn now_reflects_in_then_out() {
     assert_eq!(occ.len(), 1, "one occupied room after check-in");
     assert_eq!(occ[0]["children"], 1, "Leo present ⇒ children:1");
 
-    // Check OUT Leo through the real gated verb (Grandma Jo is authorized).
     let admin_co = principal(
         &key,
         ADMIN,
@@ -389,10 +350,7 @@ async fn now_reflects_in_then_out() {
     assert_eq!(children, 0, "later check_out ⇒ Leo absent ⇒ children:0");
 }
 
-// -- 7. Staff room-scoped list --------------------------------------------
-
-/// A staff member assigned to Possums sees Possums events, never Koalas
-/// events — the staff half of the rule-7 ledger filter.
+/// A staff member in Possums sees Possums events, never Koalas (staff rule-7 filter).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn staff_scoped_list() {
     let (store, key) = seed().await;
