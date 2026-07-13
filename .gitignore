@@ -2,6 +2,10 @@
 **/target/
 **/Cargo.lock
 
+# --- UI build output (Vite dist/) — rebuilt from source via pnpm build ------
+/ui/dist/
+/rust/extensions/care/ui/dist/
+
 # --- Node-local on-disk state (the ONE store + ext-UI serve dir) ------------
 # Repo-anchored under .cc-app/, same posture as lb's own .lb-dev and
 # rubix-ai's .rubix-ai/. Threaded into BootConfig at the binary boundary
@@ -41,6 +45,9 @@
 # posture as `**/target/`: never committed.
 **/file/tmp/
 /rust/extensions/care/file/
+# A live-node test that wrote a durable store to a literal `file:` relative
+# URI dropped this dir; the store path should be absolute — never committed.
+rust/extensions/care/file:/
 # Playwright E2E artifacts (ui/)
 ui/test-results/
 ui/playwright-report/
