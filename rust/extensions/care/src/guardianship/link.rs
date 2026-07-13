@@ -151,6 +151,23 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         }
     }
 
+    // 4) Grant the per-child feed-watch cap (milestone 10) iff the edge opts into
+    //    the daily feed. This is what upgrades `feed.watch` from a reach-check-at-
+    //    subscribe to full PLATFORM stream isolation (lb#49 / node-v0.4.3): with
+    //    the scoped grant present lb DENIES any subscribe to `care.feed.<child>`
+    //    without it, and a later unlink terminates the open stream. A missing
+    //    grant is a LOCKOUT (the guardian can't open a feed they're entitled to),
+    //    not a leak — surfaced for retry, not rolled back. No client ⇒ no-op.
+    if parsed.receives_daily_feed {
+        if let Some(client) = cp.host_client() {
+            crate::feed::grant_feed_watch(Some(client), &parsed.child_id, &guardian_sub)
+                .await
+                .map_err(|e| {
+                    ["feed-watch grant failed (retry via link): ", &e.to_string()].concat()
+                })?;
+        }
+    }
+
     // Admin audit through the chokepoint (one audit point — link is
     // admin-gated at the wall; this records the per-call trail on the child).
     let _ = assert_reach(cp, principal, &parsed.child_id).await;

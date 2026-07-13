@@ -121,6 +121,8 @@ pub fn approved_grant() -> Vec<String> {
     g.push("store:media/**:read".to_string());
     g.push("bus:chan/care-**:pub".to_string());
     g.push("bus:chan/care-**:sub".to_string());
+    // milestone 10 — the feed-watch wildcard hold (lb#49 / node-v0.4.3).
+    g.push("bus:care.feed.**:watch".to_string());
     g
 }
 

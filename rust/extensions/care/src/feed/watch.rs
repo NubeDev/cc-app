@@ -12,20 +12,24 @@
 //! against the gateway. A stranger's `feed.watch` is DENIED here (403), so the
 //! UI never receives a subject to open (matrix row asserts it).
 //!
-//! ## Two documented lb gaps (NOT worked around here)
+//! ## Platform stream isolation — the two lb gaps are CLOSED (node-v0.4.3)
 //!
-//! See `docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md`:
-//! 1. The generic `bus.watch` cap is workspace-wide — lb has no per-subject/
-//!    per-child bus scoping today, so full stream-level isolation against a
-//!    forged raw subscribe is an lb gap. The DURABLE leak surfaces
-//!    (`log.list` / `log.day` / media serve) ARE reach-checked; the live bus is a
-//!    best-effort channel over already-authorized data.
-//! 2. lb does not terminate an OPEN stream on `grants.revoke` — an unlinked
-//!    guardian's live stream survives until they disconnect, though their NEXT
-//!    subscribe and every durable read are denied immediately.
+//! Both gaps documented in
+//! `docs/debugging/authz/bus-watch-unscoped-and-no-midstream-revoke.md` shipped
+//! fixed in lb (NubeDev/lb#49 / node-v0.4.3), so this reach-check is no longer the
+//! ONLY enforcement point — it now rides ON TOP OF a platform gate:
+//! 1. lb's `bus.watch` now honors a subject-scoped `bus:<subject>:watch` grant
+//!    (present ⇒ required, absent ⇒ open). `guardianship.link` mints
+//!    `bus:care.feed.<child>:watch` for each daily-feed guardian
+//!    (`feed::watch_grant`), so lb PLATFORM-DENIES any forged subscribe to a
+//!    child's subject without the grant — not just this verb.
+//! 2. `grants.revoke` (on `unlink` / feed-off) closes the holder's OPEN SSE
+//!    stream within a bounded 3s tick — an unlinked guardian's live feed
+//!    terminates mid-session (the m10 edge-change drill asserts it).
 //!
-//! Both are lb-owned fixes (WORKFLOW-LB.md — fix lb generically first). Until
-//! they ship, this verb's reach gate is the enforcement point the extension owns.
+//! This verb still runs the reach-check-at-subscribe as the extension's own gate
+//! (defence in depth + the audited admin pass), and the DURABLE surfaces
+//! (`log.list` / `log.day` / media serve) remain independently reach-checked.
 //!
 //! ## Reply — the stream descriptor
 //!

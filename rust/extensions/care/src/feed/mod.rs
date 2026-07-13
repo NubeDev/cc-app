@@ -19,5 +19,7 @@
 
 pub mod emit;
 pub mod watch;
+pub mod watch_grant;
 
 pub use emit::{publish_entry, send_push};
+pub use watch_grant::{grant_feed_watch, revoke_feed_watch, FEED_WATCH_CAP_HELD};

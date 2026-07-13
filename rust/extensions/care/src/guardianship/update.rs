@@ -71,6 +71,10 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .get("receives_messaging")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+    let was_daily_feed = row
+        .get("receives_daily_feed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     // Validate + apply the relationship change (if any).
     if let Some(r) = &parsed.relationship {
@@ -165,6 +169,33 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             res.map_err(|e| {
                 [
                     "channel membership update failed (retry via reconcile): ",
+                    &e.to_string(),
+                ]
+                .concat()
+            })?;
+        }
+    }
+
+    // Keep the feed-watch cap in lockstep with the daily-feed-access transition
+    // (milestone 10). Feed access = `live && receives_daily_feed`; a flip of
+    // EITHER flag adds/removes the per-child `bus:care.feed.<child>:watch` grant
+    // that gates the guardian's live SSE subscribe (lb#49 / node-v0.4.3). A revoke
+    // here ALSO terminates an open stream within a 3s tick. Same
+    // best-effort-but-surfaced discipline as the channel + reach grants; no host
+    // client ⇒ no-op.
+    let now_daily_feed = parsed.receives_daily_feed.unwrap_or(was_daily_feed);
+    let was_feed = was_live && was_daily_feed;
+    let now_feed = now_live && now_daily_feed;
+    if was_feed != now_feed {
+        if let Some(client) = cp.host_client() {
+            let res = if now_feed {
+                crate::feed::grant_feed_watch(Some(client), &parsed.child_id, &guardian_sub).await
+            } else {
+                crate::feed::revoke_feed_watch(Some(client), &parsed.child_id, &guardian_sub).await
+            };
+            res.map_err(|e| {
+                [
+                    "feed-watch update failed (retry via link): ",
                     &e.to_string(),
                 ]
                 .concat()

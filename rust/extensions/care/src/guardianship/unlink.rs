@@ -102,6 +102,17 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         crate::messaging::reconcile::revoke_membership(Some(client), &child_ch, &guardian_sub)
             .await
             .map_err(|e| format!("channel membership revoke failed (retry unlink): {e}"))?;
+
+        // 4) Revoke the per-child feed-watch cap in the same breath (milestone
+        //    10). Per lb#49 Gap 2 this ALSO terminates the guardian's OPEN feed
+        //    SSE stream within a 3s tick — the mid-session-terminate the m10
+        //    edge-change drill asserts. Revoked unconditionally (belt-and-braces,
+        //    like the channel revoke): a surviving grant is an ex-partner still on
+        //    the feed. A fault is surfaced; the edge is already archived so we do
+        //    not restore it — the healing path retries the revoke.
+        crate::feed::revoke_feed_watch(Some(client), &parsed.child_id, &guardian_sub)
+            .await
+            .map_err(|e| ["feed-watch revoke failed (retry unlink): ", &e.to_string()].concat())?;
     }
 
     let reply = UnlinkReply {

@@ -202,6 +202,13 @@ fn approved_grant() -> Vec<String> {
     // extension.toml). Same no-widening reason: care holds `store:media/**:read`
     // so it can grant a per-photo `store:media/{id}:read` to feed recipients.
     approved.push("store:media/**:read".to_string());
+    // milestone 10 — the feed-watch wildcard hold (lb#49 / node-v0.4.3). Same
+    // no-widening reason: care holds `bus:care.feed.**:watch` so it can mint a
+    // per-child `bus:care.feed.<child>:watch` for each daily-feed guardian on
+    // link (revoked on unlink — which terminates the open SSE stream). This is
+    // what upgrades feed.watch from reach-check-at-subscribe to platform-enforced
+    // per-child stream isolation.
+    approved.push("bus:care.feed.**:watch".to_string());
     // 3. era-2 reach + grant derivation + invite host-callback verbs. Includes
     //    `care.reach.child` — lb's `grants.assign` no-widening rule requires the
     //    granter to HOLD the cap it grants, and `guardianship.link` grants

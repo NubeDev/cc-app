@@ -1,8 +1,10 @@
 # lb gap — `bus.watch` is workspace-wide + no mid-stream termination on revoke
 
-**Status:** OPEN lb gap (record; do NOT work around in cc-app). Found 2026-07-13
-while building m08 `care.feed.watch`. Verified against lb source at
-`node-v0.4.2` (`/home/user/code/rust/lb/rust/...`).
+**Status:** RESOLVED 2026-07-13 — shipped as `node-v0.4.3` (NubeDev/lb#49, PR#50),
+consumed in cc-app milestone 10. Found 2026-07-13 while building m08
+`care.feed.watch`; verified against lb source at `node-v0.4.2`. Both gaps below are
+now closed; the cc-app consumption is recorded in the **Resolution** section at the
+bottom.
 
 ## What we needed
 
@@ -76,3 +78,36 @@ Two additive lb pieces, in priority order:
 
 Until those ship, cc-app stays on reach-check-at-subscribe + the note above. See
 lb `entity-scoped-grants-scope.md` §Watch verbs and the m08 exit-gate rows.
+
+## Resolution — shipped `node-v0.4.3`, consumed cc-app m10 (2026-07-13)
+
+lb closed **both** gaps in NubeDev/lb#49 (PR#50, branch `bus-watch-subject-scope`),
+additive, no SDK/WIT/ABI change (so no `sdk-v*` bump):
+
+- **Gap 1 — subject-scoped grants.** A new `bus:<subject>:watch` cap
+  (`Action::Watch`, `Surface::Bus`, wildcard-capable) narrows `bus.watch`,
+  converging with the channel `bus:chan/*:sub` grammar onto one model. The coarse
+  `mcp:bus.watch:call` is unchanged; **present ⇒ required, absent ⇒ open** (fully
+  backward-compatible). The scoped read is store-backed (not token), so a
+  post-login grant authorizes on the next subscribe.
+- **Gap 2 — revoke-terminates-stream.** A `WatchRecheck` re-checks an open SSE
+  stream on a bounded 3s tick and closes it on revoke. Mode-sticky so revoking a
+  caller's *last* grant denies rather than re-opening the subject (an isolation
+  hole caught mid-build — lb `docs/debugging/bus/revoke-last-watch-grant-reopens-subject.md`).
+
+### cc-app consumption (milestone 10)
+
+1. Pin bump `node-v0.4.2 → node-v0.4.3` (all sites; `sdk-v0.4.1` unchanged).
+2. `feed::watch_grant` mints the narrow per-child `bus:care.feed.<child>:watch`
+   for each daily-feed guardian on `guardianship.link` (iff `receives_daily_feed`),
+   revokes it on `unlink`, and re-derives it on a `receives_daily_feed`/`live` flip
+   in `update` — the media serve-grant / channel-membership idiom. The sidecar
+   HOLDS the recursive wildcard `bus:care.feed.**:watch` for lb's no-widening rule
+   (lock-step: `extension.toml` + `care_mount::approved_grant` + `live_node_support`).
+3. `feed::watch` keeps its reach-check-at-subscribe as defence-in-depth + the
+   audited admin pass, now riding ON TOP OF the platform gate rather than being the
+   sole enforcement point.
+4. The **edge-change drill** (`matrix_edge_change.rs`) asserts the mid-session
+   revoke end to end: unlink Ana↔Leo ⇒ feed-watch grant gone + subscribe now
+   platform-denied, channel access gone, media 403s, push recipients empty, reach
+   denied — one scripted test (m10 exit gate).

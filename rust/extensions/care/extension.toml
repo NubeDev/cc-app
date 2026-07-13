@@ -153,6 +153,15 @@ request = [
     "bus:chan/care-**:pub",
     "bus:chan/care-**:sub",
 
+    # milestone 10 — feed-watch stream isolation (lb#49 / node-v0.4.3). lb's
+    # generic `bus.watch` now honors a subject-scoped `bus:<subject>:watch` grant
+    # (present ⇒ required, absent ⇒ open). The sidecar mints a per-child
+    # `bus:care.feed.<child>:watch` for each daily-feed guardian on link (revokes
+    # on unlink — which ALSO terminates the open SSE stream within a 3s tick), so
+    # it must HOLD the recursive wildcard for grants_assign's no-widening rule
+    # (the `store:media/**:read` idiom). `feed::watch_grant::FEED_WATCH_CAP_HELD`.
+    "bus:care.feed.**:watch",
+
     # 3. era-2 reach + grant derivation + invites (host-callback verbs)
     "mcp:authz.check_scoped:call",
     "mcp:authz.scope_filter:call",
