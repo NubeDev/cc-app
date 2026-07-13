@@ -93,18 +93,30 @@ claimed). **Fixed:** added the four `[[tools]]` blocks + added `media.begin` /
 drill now proves `care.channel.reconcile` ROUTES (returns a tool-level result, not
 "no such tool"). This was a real reachability bug for all four verbs on a live node.
 
-### Follow-on 2 — OPEN: `channel.create` host-denies over the callback
+### Follow-on 2 — ROOT-CAUSED → lb gap (NubeDev/lb#52), not a cc-app bug
 
 With routing fixed, `care.channel.reconcile` reaches lb `channel.create`, which
-returns `host denied the call (capability/workspace gate)`. `channel.create` is
-gated by `bus:chan/{cid}:pub` (`lb host/channel_registry/create.rs` →
-`authorize_channel`, `Action::Pub`), and the sidecar holds `bus:chan/care.**:pub`
-(the wildcard that lets `grants.assign` mint the per-channel pub cap — which
-SUCCEEDS on link-with-messaging in the same drill run). So the same held cap
-authorizes the grant but not the create; root cause not yet isolated (likely a
-difference between the no-widening `holds_cap` path and the `check(principal, req)`
-path over the callback, or the callback principal for `channel.create` differing
-from the grants path). Filed as an m10 follow-on — it does NOT block the
-edge-change drill (which proves the leak-critical link/unlink grant+revoke) and the
-channel-membership DERIVATION is covered by the m09 store-path suite. Guardian↔staff
-messaging channel PROVISIONING on a live node is the open item.
+fails. **Root cause (dispatch-traced):** `channel.create` is NOT wired into lb's
+MCP dispatch. `call_channel_tool` (`lb host/src/channel/tool.rs:27`) has arms only
+for `post | history | edit | delete | list`; `"channel.create"` falls through to
+`_ => Err(ToolError::NotFound)` (`tool.rs:91`). The outer cap gate
+(`mcp:channel.create:call`, which care holds) PASSES; the call dies at NotFound
+BEFORE any `authorize_channel(..., Pub)` bus-cap check runs. So the `.`-separator
+fix + the wildcard hold are both correct and never the deciding factor here — the
+channel-registry helper `channel_create` exists only in-process
+(`channel_registry/create.rs:17`, re-exported `lib.rs:156`) and was never given an
+MCP arm.
+
+`grants.assign` over the SAME callback + principal works (it routes to the
+fully-implemented `call_authz_tool`), which is how we isolated the gap to the
+missing channel dispatch arm — not caps, principal, or workspace.
+
+**Owned by lb** (WORKFLOW-LB — fix lb generically): filed as **NubeDev/lb#52** with
+scope + the one-arm additive fix (add a `channel.create` arm calling the existing
+`channel_create`; it reuses the channel `pub` gate, no new cap, no ABI/SDK change).
+Until it ships, guardian↔staff channel PROVISIONING on a live node is blocked; the
+leak-critical paths (membership grant/revoke on link/unlink, the derivation) all
+work, and the m10 edge-change drill passes. A cc-app create-on-first-post workaround
+is possible but rejected (rule 10) — no working around a core gap. **Launch-checklist
+carry:** bump the lb pin once #52 ships, then the drill can assert full channel
+provision + read + post + unlink-revoke.
