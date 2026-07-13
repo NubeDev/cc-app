@@ -163,7 +163,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 .await
             };
             res.map_err(|e| {
-                format!("channel membership update failed (retry via reconcile): {e}")
+                [
+                    "channel membership update failed (retry via reconcile): ",
+                    &e.to_string(),
+                ]
+                .concat()
             })?;
         }
     }
