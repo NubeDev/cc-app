@@ -47,4 +47,27 @@
   /* Local semantic tokens used by the components. */
   --care-radius: 0.75rem;
   --care-touch-target: 2.75rem;
+
+  /* Ratio / staffing warning (amber). The host's shadcn palette has no amber
+     semantic, so the extension defines its own semantic `warning` token here
+     (NEVER a hardcoded hex in a component). Light-mode values; the `.dark`
+     override below adjusts for dark surfaces. */
+  --warning: 38 92% 45%;
+  --warning-foreground: 40 96% 97%;
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  /* Present / checked-in success (green). Same rationale as `warning`. */
+  --success: 152 60% 40%;
+  --success-foreground: 150 80% 97%;
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+}
+
+.dark [data-ext-root],
+[data-ext-root].dark {
+  --warning: 41 96% 56%;
+  --warning-foreground: 30 40% 10%;
+  --success: 152 55% 52%;
+  --success-foreground: 150 40% 8%;
 }

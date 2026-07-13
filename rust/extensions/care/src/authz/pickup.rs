@@ -62,7 +62,16 @@ pub async fn pickup_roster(cp: &Chokepoint, child_id: &str) -> GuardianPickupFac
     for row in rows {
         let edge: EdgeRow = match serde_json::from_value(row) {
             Ok(e) => e,
-            Err(_) => continue,
+            // FAIL CLOSED (child-safety): an edge we cannot fully read might be
+            // the one carrying the custody hold. Skipping it would drop the
+            // hold and could release a held child to a `can_pickup` guardian a
+            // court order restrains. So an undecodable edge forces the custody
+            // hold — the gate then denies until an admin reads the record and
+            // overrides. A malformed edge never silently opens the gate.
+            Err(_) => {
+                facts.custody_hold = true;
+                continue;
+            }
         };
         if !edge.live {
             continue;

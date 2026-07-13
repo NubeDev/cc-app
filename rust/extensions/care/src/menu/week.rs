@@ -185,16 +185,12 @@ fn add_days(date: &str, n: u32) -> Option<String> {
             }
         }
     }
-    Some(iso_date(year, month, day))
-}
-
-/// Zero-pad `(year, month, day)` into `YYYY-MM-DD` — a pure date-key builder
-/// (no user-facing literal; each `format!` uses positional specifiers only).
-fn iso_date(year: i64, month: u32, day: u32) -> String {
+    // Zero-pad into YYYY-MM-DD — positional specifiers only (no user-facing
+    // literal; a pure date-key builder, rule-8 lint distinguishes it from chrome).
     let y = format!("{:04}", year);
     let m = format!("{:02}", month);
     let d = format!("{:02}", day);
-    [y, m, d].join("-")
+    Some([y, m, d].join("-"))
 }
 
 /// The number of days in a (year, month), Gregorian leap-year aware.
@@ -235,18 +231,10 @@ mod tests {
         principal(signing, sub, Role::Member)
     }
     fn principal(signing: &SigningKey, sub: &str, role: Role) -> Principal {
+        let caps = vec!["mcp:care.child.create:call".into(), "mcp:care.menu.week:call".into()];
         let claims = Claims {
-            sub: sub.into(),
-            ws: WS.into(),
-            role,
-            caps: vec![
-                "mcp:care.child.create:call".into(),
-                "mcp:care.menu.week:call".into(),
-            ],
-            iat: 0,
-            exp: u64::MAX,
-            constraint: None,
-            run_id: None,
+            sub: sub.into(), ws: WS.into(), role, caps,
+            iat: 0, exp: u64::MAX, constraint: None, run_id: None,
         };
         verify(signing, &mint(signing, &claims), 1).expect("verify")
     }
@@ -255,20 +243,8 @@ mod tests {
     /// source of truth the chokepoint reads).
     async fn seed_edge(store: &Arc<Store>, guardian_sub: &str, child_id: &str) {
         let id = [guardian_sub, child_id].join("::");
-        store_create(
-            store,
-            WS,
-            "guardianship",
-            &id,
-            &json!({
-                "guardian_sub": guardian_sub,
-                "child_id": child_id,
-                "relationship": "mother",
-                "live": true,
-            }),
-        )
-        .await
-        .unwrap();
+        let row = json!({ "guardian_sub": guardian_sub, "child_id": child_id, "relationship": "mother", "live": true });
+        store_create(store, WS, "guardianship", &id, &row).await.unwrap();
     }
 
     /// Seed one menu cell for the possums room on Monday lunch.

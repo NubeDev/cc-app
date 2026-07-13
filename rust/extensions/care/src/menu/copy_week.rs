@@ -33,7 +33,7 @@
 
 use lb_auth::Principal;
 
-use crate::authz::{assert_reach, Chokepoint, RecordError};
+use crate::authz::{reachable_rooms, Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::i18n::t;
 use crate::menu::{validate_date, Menu, MenuError, Slot};
@@ -116,6 +116,14 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         return Err(format!("{}", MenuError::MissingField("room_id")));
     }
 
+    // ROOM-SCOPE the write (finding 3 fix): a staff Member may only copy into a
+    // room they're assigned to. Admin (`["*"]`) copies any room; a room outside
+    // the assigned set is refused before any write.
+    let rooms = reachable_rooms(cp, principal).await;
+    if !rooms.iter().any(|r| r == "*" || r == &parsed.room_id) {
+        return Err(format!("{}", MenuError::NotFound(parsed.room_id.clone())));
+    }
+
     let locale = Locale::parse(parsed.locale.as_deref().unwrap_or("en")).unwrap_or(Locale::En);
 
     // For each of the 7 days × each slot: read the source cell, and if present,
@@ -165,13 +173,6 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         }
     }
 
-    // Admin audit through the chokepoint (one audit point) when the writer is an
-    // admin; a staff Member holds the cap and needs no reach hop.
-    if principal.role() == lb_auth::Role::WorkspaceAdmin
-        || principal.role() == lb_auth::Role::SuperAdmin
-    {
-        let _ = assert_reach(cp, principal, &parsed.room_id).await;
-    }
 
     let reply = CopyWeekReply {
         copied,

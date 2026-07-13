@@ -53,24 +53,58 @@ impl Allergen {
         Allergen::Sesame,
     ];
 
-    /// Parse a wire tag. A fixed word maps to its arm; anything else becomes
-    /// `Other(<trimmed, lowercased label>)` — NEVER rejected (a food-safety
-    /// tag is always accepted so garbage flags conservatively, never drops).
-    /// An `other:foo` prefix is honored so a re-serialized tag round-trips.
+    /// Parse a wire tag OR a free-text child-allergy string. A fixed word maps
+    /// to its arm; anything else becomes `Other(<label>)` — NEVER rejected (a
+    /// food-safety tag is always accepted so garbage flags conservatively).
+    ///
+    /// ## Aggressive normalization (the safety half)
+    ///
+    /// Child allergies are entered as FREE TEXT, so `"peanuts"`, `"Tree Nut"`,
+    /// `"peanut allergy"`, `"milk / dairy"` must ALL fold onto the fixed key so
+    /// the derivation intersects them with a `peanut`/`milk` menu tag. A miss
+    /// here is the worst outcome (a peanut-allergic child served peanut satay
+    /// with no flag). So this normalizes: case-fold, strip an `other:` prefix,
+    /// drop noise words (`allergy`/`allergic`/`intolerance`/`to`/`a`), collapse
+    /// separators to `_`, and singularize a trailing `s`. Then it aliases onto
+    /// the fixed set. A string that STILL doesn't map is `Other` — which the
+    /// derivation treats conservatively (never a silent safe).
     pub fn parse(s: &str) -> Allergen {
         let raw = s.trim();
         let bare = raw.strip_prefix("other:").unwrap_or(raw);
-        match bare.to_ascii_lowercase().as_str() {
+        // Fold: lowercase, drop punctuation to spaces, drop noise words.
+        let lowered = bare.to_ascii_lowercase();
+        let cleaned: String = lowered
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { ' ' })
+            .collect();
+        const NOISE: &[&str] = &["allergy", "allergic", "intolerance", "intolerant", "to", "a", "an"];
+        let mut words: Vec<&str> = cleaned
+            .split_whitespace()
+            .filter(|w| !NOISE.contains(w))
+            .collect();
+        // Singularize a trailing plural on the last significant word so
+        // `peanuts`/`nuts`/`eggs` fold to the singular key.
+        let last = words.last().map(|w| w.strip_suffix('s').unwrap_or(w));
+        if let (Some(l), Some(depluralized)) = (words.len().checked_sub(1), last) {
+            words[l] = depluralized;
+        }
+        let joined = words.join("_");
+        match joined.as_str() {
             "peanut" => Allergen::Peanut,
-            "tree_nut" | "treenut" | "tree-nut" => Allergen::TreeNut,
-            "milk" | "dairy" => Allergen::Milk,
+            "tree_nut" | "treenut" | "nut" => Allergen::TreeNut,
+            "milk" | "dairy" | "milk_dairy" | "dairy_milk" | "lactose" => Allergen::Milk,
             "egg" => Allergen::Egg,
-            "wheat" | "gluten" => Allergen::Wheat,
-            "soy" => Allergen::Soy,
+            "wheat" | "gluten" | "wheat_gluten" | "gluten_wheat" | "celiac" | "coeliac" => {
+                Allergen::Wheat
+            }
+            "soy" | "soya" => Allergen::Soy,
             "fish" => Allergen::Fish,
-            "shellfish" => Allergen::Shellfish,
+            "shellfish" | "shell_fish" | "crustacean" | "crustacea" => Allergen::Shellfish,
             "sesame" => Allergen::Sesame,
-            other => Allergen::Other(other.to_string()),
+            // Still unrecognized — keep the ORIGINAL cleaned label (not the
+            // depluralized join) so `Other` round-trips and the derivation
+            // flags it conservatively.
+            _ => Allergen::Other(bare.trim().to_ascii_lowercase()),
         }
     }
 

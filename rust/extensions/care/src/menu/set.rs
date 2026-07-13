@@ -26,7 +26,7 @@
 
 use lb_auth::Principal;
 
-use crate::authz::{assert_reach, Chokepoint, RecordError};
+use crate::authz::{reachable_rooms, Chokepoint, RecordError};
 use crate::center::Locale;
 use crate::i18n::t;
 use crate::menu::{validate_date, Allergen, Menu, MenuError, MenuItem, Slot, Substitution};
@@ -82,6 +82,17 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         return Err(format!("{}", MenuError::MissingField("room_id")));
     }
 
+    // ROOM-SCOPE the write (finding 3 fix): a menu is a room plan, and a
+    // staff `Member` must not overwrite a room they're not assigned to (a
+    // food-safety-relevant write). `reachable_rooms` returns `["*"]` for an
+    // admin (writes any room) and the assigned set for staff; a room outside
+    // that set is refused BEFORE the write, mirroring `menu.get`'s read scope.
+    let rooms = reachable_rooms(cp, principal).await;
+    let room_ok = rooms.iter().any(|r| r == "*" || r == &parsed.room_id);
+    if !room_ok {
+        return Err(format!("{}", MenuError::NotFound(parsed.room_id.clone())));
+    }
+
     // Items: name is required; allergen tags fold to the enum (never reject).
     let mut items = Vec::with_capacity(parsed.items.len());
     for item in &parsed.items {
@@ -124,14 +135,6 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
             RecordError::Conflict => format!("{}", MenuError::StoreDenied("set (conflict)".into())),
             RecordError::Store(s) => format!("{}: {s}", MenuError::StoreDenied("set".into())),
         })?;
-
-    // Admin audit through the chokepoint (one audit point) when the writer is
-    // an admin; a staff Member holds the cap and needs no reach hop.
-    if principal.role() == lb_auth::Role::WorkspaceAdmin
-        || principal.role() == lb_auth::Role::SuperAdmin
-    {
-        let _ = assert_reach(cp, principal, &menu.room_id).await;
-    }
 
     let reply = SetReply {
         message: t(locale, "menu.saved", &[("slot", slot.key()), ("date", &menu.date)]),
@@ -238,6 +241,65 @@ mod tests {
         .await;
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("invalid date"));
+    }
+
+    fn staff(signing: &SigningKey, ws: &str) -> Principal {
+        let claims = Claims {
+            sub: "user:teacher".into(),
+            ws: ws.into(),
+            role: Role::Member,
+            caps: vec!["mcp:care.menu.set:call".into()],
+            iat: 0,
+            exp: u64::MAX,
+            constraint: None,
+            run_id: None,
+        };
+        verify(signing, &mint(signing, &claims), 1).expect("verify")
+    }
+
+    #[tokio::test]
+    async fn staff_cannot_write_a_room_they_are_not_assigned_to() {
+        // FINDING 3: a staff Member may only set menus for their assigned
+        // rooms. Seed a staff_assignment for possums; a set to koalas is refused
+        // and writes nothing.
+        let store = Arc::new(Store::memory().await.unwrap());
+        let key = SigningKey::generate();
+        let cp = Chokepoint::new(store.clone(), "acme");
+        lb_store::create(
+            &store,
+            "acme",
+            "staff_assignment",
+            "user:teacher::room:possums",
+            &serde_json::json!({"staff_sub":"user:teacher","room_id":"room:possums"}),
+        )
+        .await
+        .unwrap();
+        let p = staff(&key, "acme");
+
+        // Assigned room → allowed.
+        run(
+            &cp,
+            &p,
+            r#"{"date":"2026-07-14","room_id":"room:possums","slot":"lunch","items":[],"substitutions":[]}"#,
+        )
+        .await
+        .expect("assigned room write ok");
+
+        // Unassigned room → refused, nothing written.
+        let res = run(
+            &cp,
+            &p,
+            r#"{"date":"2026-07-14","room_id":"room:koalas","slot":"lunch","items":[],"substitutions":[]}"#,
+        )
+        .await;
+        assert!(res.is_err(), "staff must not write an unassigned room");
+        assert!(
+            read(&store, "acme", "menu", "2026-07-14::room:koalas::lunch")
+                .await
+                .unwrap()
+                .is_none(),
+            "no menu cell written for the unassigned room"
+        );
     }
 
     #[tokio::test]

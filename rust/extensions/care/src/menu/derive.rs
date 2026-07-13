@@ -66,6 +66,12 @@ pub struct DerivedRow {
 pub fn derive_for_child(menu: &Menu, child_allergy_keys: &[String]) -> Vec<DerivedRow> {
     let mut rows = Vec::new();
     let has_any_allergy = !child_allergy_keys.is_empty();
+    // The child's restrictions the fixed vocabulary CANNOT reason about — a
+    // free-text allergy that folded to `other:*` (e.g. `other:mango`). An item
+    // tagged only with fixed allergens can't be PROVEN clear of these, so they
+    // force a conservative per-item flag (guard 3, below). A menu item can only
+    // be proven safe against a restriction the tag vocabulary can express.
+    let has_unknown_restriction = child_allergy_keys.iter().any(|k| k.starts_with("other:"));
 
     for item in &menu.items {
         if item.allergens.is_empty() {
@@ -83,11 +89,13 @@ pub fn derive_for_child(menu: &Menu, child_allergy_keys: &[String]) -> Vec<Deriv
             continue;
         }
 
+        let mut matched_fixed = false;
         for tag in &item.allergens {
             let tag_key = tag.key();
             // Guard 1: the intersection is on the canonical key (alias/case
             // folded by `Allergen::parse` on both sides), never the raw string.
             if child_allergy_keys.iter().any(|k| k == &tag_key) {
+                matched_fixed = true;
                 let substitute = substitute_for(menu, tag);
                 rows.push(DerivedRow {
                     item: item.name.clone(),
@@ -96,6 +104,21 @@ pub fn derive_for_child(menu: &Menu, child_allergy_keys: &[String]) -> Vec<Deriv
                     substitute,
                 });
             }
+        }
+
+        // Guard 3: the child has a free-text (`other:*`) restriction the fixed
+        // tags can't express. This tagged item was NOT matched by a fixed key,
+        // so it CANNOT be proven clear of that unknown restriction — flag it
+        // conservatively (unresolved). A child whose allergy the vocabulary
+        // can't name is never silently served a dish that "looked safe" only
+        // because the tag set couldn't describe the danger.
+        if has_unknown_restriction && !matched_fixed {
+            rows.push(DerivedRow {
+                item: item.name.clone(),
+                reason: "untaggable".to_string(),
+                substitute: None,
+                resolved: false,
+            });
         }
     }
     rows
@@ -215,6 +238,57 @@ mod tests {
         // Child with NO allergies → no flag (nothing to protect against).
         let none = derive_for_child(&m, &[]);
         assert!(none.is_empty());
+    }
+
+    #[test]
+    fn plural_and_spaced_free_text_allergies_still_flag() {
+        // FINDING 1 (the adversarial reviewer's CRITICAL): a child's allergy
+        // typed as the NATURAL plural "peanuts" (or "Tree Nuts", "peanut
+        // allergy") must still meet a `peanut`/`tree_nut` menu tag. A miss here
+        // is the worst outcome.
+        let m = menu(
+            vec![MenuItem {
+                name: "Peanut satay".into(),
+                allergens: vec![Allergen::Peanut],
+            }],
+            vec![],
+        );
+        for spelling in ["peanuts", "Peanuts", "PEANUT", "peanut allergy", "allergic to peanuts"] {
+            let rows = derive_for_child(&m, &allergy_keys(&[spelling.into()]));
+            assert_eq!(rows.len(), 1, "spelling {spelling:?} must flag the peanut item");
+            assert_eq!(rows[0].reason, "peanut");
+        }
+    }
+
+    #[test]
+    fn an_unknown_free_text_restriction_flags_tagged_items_conservatively() {
+        // FINDING 1 guard 3: a child whose allergy the fixed vocabulary can't
+        // name (`other:mango`) can't have a peanut-tagged item PROVEN safe
+        // against mango — so it flags conservatively (unresolved), never a
+        // silent safe.
+        let m = menu(
+            vec![MenuItem {
+                name: "Fruit salad".into(),
+                allergens: vec![Allergen::Peanut], // tagged, but not for mango
+            }],
+            vec![],
+        );
+        let rows = derive_for_child(&m, &allergy_keys(&["mango".into()]));
+        assert_eq!(rows.len(), 1, "an unknown restriction flags the item conservatively");
+        assert!(!rows[0].resolved);
+        // A child whose restriction the vocabulary DOES express (peanut) does
+        // NOT get the conservative flag on an item clear of peanut.
+        let clear = menu(
+            vec![MenuItem {
+                name: "Rice".into(),
+                allergens: vec![Allergen::Milk],
+            }],
+            vec![],
+        );
+        assert!(
+            derive_for_child(&clear, &allergy_keys(&["peanut".into()])).is_empty(),
+            "a known restriction doesn't over-flag a clearly-safe item"
+        );
     }
 
     #[test]
