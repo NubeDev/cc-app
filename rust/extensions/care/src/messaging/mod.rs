@@ -20,6 +20,5 @@ pub mod reconcile;
 pub mod reconcile_verb;
 
 pub use channel_id::{
-    center_channel, child_channel, pub_cap, room_channel, sub_cap, ChannelRole,
-    CARE_CHANNEL_PREFIX,
+    center_channel, child_channel, pub_cap, room_channel, sub_cap, ChannelRole, CARE_CHANNEL_PREFIX,
 };

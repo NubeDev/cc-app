@@ -232,7 +232,10 @@ pub async fn resolve_child_channel_members(cp: &Chokepoint, child_id: &str) -> V
                 continue;
             }
             if let Some(sub) = row.get("guardian_sub").and_then(|v| v.as_str()) {
-                members.push(ChannelMember { subject: sub.to_string(), full: true });
+                members.push(ChannelMember {
+                    subject: sub.to_string(),
+                    full: true,
+                });
             }
         }
     }
@@ -240,7 +243,10 @@ pub async fn resolve_child_channel_members(cp: &Chokepoint, child_id: &str) -> V
     // Staff of the child's room (read child → room → its assignments).
     if let Some(room_id) = child_room(cp, child_id).await {
         for sub in room_staff(cp, &room_id).await {
-            members.push(ChannelMember { subject: sub, full: true });
+            members.push(ChannelMember {
+                subject: sub,
+                full: true,
+            });
         }
     }
 
@@ -267,7 +273,10 @@ pub async fn resolve_room_channel_members(cp: &Chokepoint, room_id: &str) -> Vec
         room_staff(cp, room_id)
             .await
             .into_iter()
-            .map(|subject| ChannelMember { subject, full: true })
+            .map(|subject| ChannelMember {
+                subject,
+                full: true,
+            })
             .collect(),
     )
 }

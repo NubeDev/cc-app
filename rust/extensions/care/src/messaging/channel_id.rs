@@ -103,7 +103,10 @@ mod tests {
             room_channel("room:possums"),
             center_channel("center:hq"),
         ] {
-            assert!(id.starts_with(CARE_CHANNEL_PREFIX), "wildcard-hold scope: {id}");
+            assert!(
+                id.starts_with(CARE_CHANNEL_PREFIX),
+                "wildcard-hold scope: {id}"
+            );
         }
     }
 
@@ -115,6 +118,9 @@ mod tests {
         assert!(full.contains(&"bus:chan/care-child-leo:sub".to_string()));
         // The whole announcements policy: a reader gets sub, never pub.
         assert_eq!(ro, vec!["bus:chan/care-center-hq:sub".to_string()]);
-        assert!(!ro.iter().any(|c| c.ends_with(":pub")), "read-only never posts");
+        assert!(
+            !ro.iter().any(|c| c.ends_with(":pub")),
+            "read-only never posts"
+        );
     }
 }

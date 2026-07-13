@@ -85,7 +85,11 @@ pub async fn reconcile_channel(
     members: &[ChannelMember],
 ) -> Result<(), CallError> {
     for m in members {
-        let role = if m.full { ChannelRole::Full } else { ChannelRole::ReadOnly };
+        let role = if m.full {
+            ChannelRole::Full
+        } else {
+            ChannelRole::ReadOnly
+        };
         grant_membership(client, channel_id, &m.subject, role).await?;
     }
     Ok(())
@@ -99,11 +103,20 @@ mod tests {
     // directly in `authz::scope`; the grant round-trip is a live-node concern).
     #[tokio::test]
     async fn no_client_is_a_noop_ok() {
-        assert!(grant_membership(None, "care-child-leo", "user:ana", ChannelRole::Full)
+        assert!(
+            grant_membership(None, "care-child-leo", "user:ana", ChannelRole::Full)
+                .await
+                .is_ok()
+        );
+        assert!(revoke_membership(None, "care-child-leo", "user:ana")
             .await
             .is_ok());
-        assert!(revoke_membership(None, "care-child-leo", "user:ana").await.is_ok());
-        let members = vec![ChannelMember { subject: "user:ana".into(), full: true }];
-        assert!(reconcile_channel(None, "care-child-leo", &members).await.is_ok());
+        let members = vec![ChannelMember {
+            subject: "user:ana".into(),
+            full: true,
+        }];
+        assert!(reconcile_channel(None, "care-child-leo", &members)
+            .await
+            .is_ok());
     }
 }

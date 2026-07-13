@@ -22,7 +22,7 @@
 use lb_auth::Principal;
 use serde_json::json;
 
-use crate::authz::{channel_members, Chokepoint, ChannelTarget};
+use crate::authz::{channel_members, ChannelTarget, Chokepoint};
 use crate::messaging::channel_id::{child_channel, room_channel};
 use crate::messaging::reconcile::reconcile_channel;
 
@@ -69,7 +69,10 @@ pub async fn run(cp: &Chokepoint, _principal: &Principal, input: &str) -> Result
         .await
         .map_err(|e| format!("channel membership grant failed: {e}"))?;
 
-    let reply = ReconcileReply { channel_id, members: members.len() };
+    let reply = ReconcileReply {
+        channel_id,
+        members: members.len(),
+    };
     serde_json::to_string(&reply).map_err(|e| format!("serialize reply: {e}"))
 }
 
@@ -118,6 +121,8 @@ mod tests {
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store, "acme");
         let p = admin(&key, "acme");
-        assert!(run(&cp, &p, r#"{"target":"teacher","id":"x"}"#).await.is_err());
+        assert!(run(&cp, &p, r#"{"target":"teacher","id":"x"}"#)
+            .await
+            .is_err());
     }
 }

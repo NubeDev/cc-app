@@ -38,9 +38,9 @@ pub async fn run(cp: &Chokepoint, _principal: &Principal, input: &str) -> Result
     }
 
     let channel_id = center_channel(&parsed.center_id);
-    let client = cp
-        .host_client()
-        .ok_or_else(|| "care.announce.post needs a host client (no channel on the era-1 path)".to_string())?;
+    let client = cp.host_client().ok_or_else(|| {
+        "care.announce.post needs a host client (no channel on the era-1 path)".to_string()
+    })?;
 
     // lb's channel.post gate requires `bus:chan/{cid}:pub` — which admin/staff
     // hold (granted on center provisioning) and guardians do not. The care
@@ -83,7 +83,9 @@ mod tests {
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store, "acme");
         let p = staff(&key, "acme");
-        assert!(run(&cp, &p, r#"{"center_id":"center:hq","body":"  "}"#).await.is_err());
+        assert!(run(&cp, &p, r#"{"center_id":"center:hq","body":"  "}"#)
+            .await
+            .is_err());
     }
 
     #[tokio::test]
@@ -93,8 +95,10 @@ mod tests {
         let cp = Chokepoint::new(store, "acme");
         let p = staff(&key, "acme");
         // A well-formed post needs the durable channel — no silent no-op.
-        assert!(run(&cp, &p, r#"{"center_id":"center:hq","body":"snow day"}"#)
-            .await
-            .is_err());
+        assert!(
+            run(&cp, &p, r#"{"center_id":"center:hq","body":"snow day"}"#)
+                .await
+                .is_err()
+        );
     }
 }

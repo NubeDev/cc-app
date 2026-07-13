@@ -22,7 +22,7 @@
 
 mod common;
 
-use care::authz::{channel_members, Chokepoint, ChannelTarget};
+use care::authz::{channel_members, ChannelTarget, Chokepoint};
 use lb_store::{create as store_create, write as store_write, Store};
 use std::sync::Arc;
 
@@ -97,8 +97,14 @@ async fn leo_channel_has_ana_and_sam_never_mias_mum() {
     let cp = Chokepoint::new(store, WS);
     let subs = subjects(&channel_members(&cp, &ChannelTarget::Child(LEO)).await);
 
-    assert!(subs.contains(&ANA.to_string()), "Ana (messaging edge) is in Leo's channel");
-    assert!(subs.contains(&SAM.to_string()), "Sam (Possums staff) is in Leo's channel");
+    assert!(
+        subs.contains(&ANA.to_string()),
+        "Ana (messaging edge) is in Leo's channel"
+    );
+    assert!(
+        subs.contains(&SAM.to_string()),
+        "Sam (Possums staff) is in Leo's channel"
+    );
     // THE LEAK GUARD: Mia's mum has no path to Leo's channel.
     assert!(
         !subs.contains(&MIAS_MUM.to_string()),
@@ -117,7 +123,10 @@ async fn ana_has_no_path_to_mias_channel() {
         !subs.contains(&ANA.to_string()),
         "THE CROSS-FAMILY LEAK: Ana must have NO path to Mia's channel: {subs:?}"
     );
-    assert!(subs.contains(&MIAS_MUM.to_string()), "Mia's mum reaches her own child's channel");
+    assert!(
+        subs.contains(&MIAS_MUM.to_string()),
+        "Mia's mum reaches her own child's channel"
+    );
 }
 
 #[tokio::test]
@@ -174,13 +183,23 @@ async fn room_channel_derives_staff_deduped_full() {
     // PLACEMENT event, not derived here (the generic store `list` returns no
     // keys, so a room cannot enumerate its children — see
     // `resolve_room_channel_members`'s doc).
-    assert!(subs.contains(&SAM.to_string()), "room staff in the room channel");
+    assert!(
+        subs.contains(&SAM.to_string()),
+        "room staff in the room channel"
+    );
     // No guardian leaks in via derivation (they're event-driven per placement).
-    assert!(!subs.contains(&MIAS_MUM.to_string()), "another room's guardian excluded: {subs:?}");
+    assert!(
+        !subs.contains(&MIAS_MUM.to_string()),
+        "another room's guardian excluded: {subs:?}"
+    );
     // Idempotent dedupe: no subject appears twice, every member is Full.
     let mut seen = std::collections::HashSet::new();
     for m in &members {
-        assert!(seen.insert(m.subject.clone()), "no duplicate member: {}", m.subject);
+        assert!(
+            seen.insert(m.subject.clone()),
+            "no duplicate member: {}",
+            m.subject
+        );
         assert!(m.full, "room channel members are Full (post+read)");
     }
 }

@@ -155,10 +155,16 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 )
                 .await
             } else {
-                crate::messaging::reconcile::revoke_membership(Some(client), &child_ch, &guardian_sub)
-                    .await
+                crate::messaging::reconcile::revoke_membership(
+                    Some(client),
+                    &child_ch,
+                    &guardian_sub,
+                )
+                .await
             };
-            res.map_err(|e| format!("channel membership update failed (retry via reconcile): {e}"))?;
+            res.map_err(|e| {
+                format!("channel membership update failed (retry via reconcile): {e}")
+            })?;
         }
     }
 
