@@ -36,17 +36,23 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
     // Admin path: list every center row, schema-stable SurrealQL.
     // Filtering `archived` is left to the caller (admin sees both; the
     // UI can hide them).
-    let data_rows: Vec<serde_json::Value> = cp
+    // Each row carries its store `id` (`{ id, ...center }`) so the UI can
+    // address a center by id (the record body has none).
+    let rows: Vec<(String, serde_json::Value)> = cp
         .records()
-        .query_data("center")
+        .query_rows("center")
         .await
         .map_err(|e| format!("store denied the center list: {e}"))?;
-    let mut out: Vec<Center> = Vec::new();
-    for row in data_rows {
-        if let Ok(c) = serde_json::from_value::<Center>(row) {
-            out.push(c);
-        }
-    }
+    let out: Vec<serde_json::Value> = rows
+        .into_iter()
+        .filter(|(_, v)| serde_json::from_value::<Center>(v.clone()).is_ok())
+        .map(|(id, mut v)| {
+            if let Some(o) = v.as_object_mut() {
+                o.insert("id".into(), serde_json::Value::String(id));
+            }
+            v
+        })
+        .collect();
     serde_json::to_string(&out).map_err(|e| format!("serialize reply: {e}"))
 }
 

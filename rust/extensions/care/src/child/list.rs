@@ -18,23 +18,30 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
     let reach = reachable_children(cp, principal).await;
     let is_admin = reach.iter().any(|r| r == "*");
 
-    let out: Vec<Child> = if is_admin {
+    // Each row carries its store `id` (`{ id, ...child }`) so the UI can
+    // address a child by id (route, select, enroll) — the record body has none.
+    let out: Vec<serde_json::Value> = if is_admin {
         // Admin: every child in the workspace (archived included — the audit
-        // trail). One scan.
-        all_children(cp).await?
+        // trail). One scan, id-carrying.
+        let rows = cp
+            .records()
+            .query_rows("child")
+            .await
+            .map_err(|e| format!("store denied the child list: {e}"))?;
+        rows.into_iter()
+            .filter_map(|(id, v)| serde_json::from_value::<Child>(v.clone()).ok().map(|_| with_id(&id, v)))
+            .collect()
     } else {
         // Non-admin (rule 7): fetch ONLY the reached ids — one indexed read
-        // per reached child, never the whole table (the scope's "push the ids
-        // into the query" intent). The reach id equals the record id (the
-        // guardianship edge's `child_id`), so a direct `read` addresses the
-        // exact row; a miss just contributes nothing. Empty reach ⇒ empty
-        // reply (never an error, never a leak).
+        // per reached child, never the whole table. The reach id equals the
+        // record id, so a direct `read` addresses the exact row; a miss
+        // contributes nothing. Empty reach ⇒ empty reply (never a leak).
         let mut acc = Vec::new();
         for id in &reach {
-            if let Some(child) = read_child(cp, id).await? {
+            if let Some((child, value)) = read_child(cp, id).await? {
                 // Archived children are invisible to non-admins.
                 if !child.archived {
-                    acc.push(child);
+                    acc.push(with_id(id, value));
                 }
             }
         }
@@ -43,37 +50,29 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, _input: &str) -> Result
     serde_json::to_string(&out).map_err(|e| format!("serialize reply: {e}"))
 }
 
-/// Read one child record by its reach/record id, deserialized. `None` if
-/// absent (a reached id whose record was archived-out or never created).
-async fn read_child(cp: &Chokepoint, id: &str) -> Result<Option<Child>, String> {
+/// Merge the store `id` into a child record's `data` object → `{ id, ...child }`.
+fn with_id(id: &str, mut data: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = data.as_object_mut() {
+        obj.insert("id".to_string(), serde_json::Value::String(id.to_string()));
+    }
+    data
+}
+
+/// Read one child record by its reach/record id, returning BOTH the typed
+/// child (for the archived check) and the raw value (to merge the id into).
+/// `None` if absent (a reached id whose record was archived-out or never made).
+async fn read_child(cp: &Chokepoint, id: &str) -> Result<Option<(Child, serde_json::Value)>, String> {
     let value = cp
         .records()
         .read("child", id)
         .await
         .map_err(|e| format!("store denied the child read: {e}"))?;
     match value {
-        Some(v) => serde_json::from_value::<Child>(v)
-            .map(Some)
+        Some(v) => serde_json::from_value::<Child>(v.clone())
+            .map(|c| Some((c, v)))
             .map_err(|e| format!("deserialize child: {e}")),
         None => Ok(None),
     }
-}
-
-/// Every child in the workspace (admin path). `SELECT data` deserializes each
-/// row's record envelope — the same shape the store's `list` helper uses.
-async fn all_children(cp: &Chokepoint) -> Result<Vec<Child>, String> {
-    let data_rows: Vec<serde_json::Value> = cp
-        .records()
-        .query_data("child")
-        .await
-        .map_err(|e| format!("store denied the child list: {e}"))?;
-    let mut out = Vec::new();
-    for row in data_rows {
-        if let Ok(c) = serde_json::from_value::<Child>(row) {
-            out.push(c);
-        }
-    }
-    Ok(out)
 }
 
 #[cfg(test)]
