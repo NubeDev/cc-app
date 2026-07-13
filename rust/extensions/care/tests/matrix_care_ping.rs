@@ -71,6 +71,13 @@ const COVERED_VERBS: &[&str] = &[
     "log.correct",
     "log.day",
     "feed.watch",
+    // Media path (photos only). The media-URL-leak deny (a stranger never sees
+    // another family's `media_id` on list/day; the byte grant only reaches the
+    // child's feed-recipients) is asserted in `tests/matrix_daily_feed.rs`;
+    // per-verb in-file tests cover the video/pdf reject at `begin` and the
+    // malformed-input reject at `commit`.
+    "media.begin",
+    "media.commit",
 ];
 
 #[test]

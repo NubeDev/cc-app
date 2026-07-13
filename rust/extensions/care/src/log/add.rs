@@ -24,11 +24,9 @@
 //! ## Photo consent enforced AT WRITE, never at render (daily-feed-scope §"Photo consent")
 //!
 //! If the entry carries `media_ids`, EVERY tapped child must hold
-//! `child.photo_consent == true`. A child who forbids photos blocks the attach at
-//! the write boundary — the media never lands on their row. (Video is rejected on
-//! the media path at commit; v1 the feed shows photos only — daily-feed-scope
-//! §Non-goals.) Consent is read through the record store (the child profile), not
-//! the authz table, so it is not a reach question.
+//! `child.photo_consent == true` — a forbidding child blocks the attach at the
+//! write boundary (`add_media::assert_photo_consent`; video is rejected on the
+//! media path at commit — v1 the feed shows photos only).
 //!
 //! ## Motion after the record (best-effort) — bus emit + push
 //!
@@ -43,14 +41,13 @@ use lb_auth::Principal;
 
 use crate::authz::{feed_recipients, Chokepoint, RecordError};
 use crate::center::Locale;
-use crate::child::Child;
 use crate::feed::{publish_entry, send_push};
 use crate::i18n::t;
+use crate::log::add_media::{assert_photo_consent, grant_photo_reads};
 use crate::log::{
     entry_id, feed_subject, validate_timestamp, DailyLog, IncidentPayload, LogError, LogKind,
     MealPayload, MedicationPayload, NapPayload,
 };
-use crate::media::grant_media_read;
 use crate::push::decide;
 
 #[derive(Debug, serde::Deserialize)]
@@ -165,11 +162,8 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         let recipients = feed_recipients(cp, child_id).await;
 
         // Media-URL-leak defense (daily-feed-scope §Risks): grant
-        // `store:media/{id}:read` to THIS child's feed recipients for each
-        // attached photo, so only reach-holders can fetch the bytes (a leaked
-        // URL 403s for everyone else). Best-effort like the bus emit — the row
-        // already landed — but a grant fault IS logged (a missing grant is a
-        // guardian LOCKOUT from a photo they're entitled to, worth surfacing).
+        // `store:media/{id}:read` to THIS child's feed recipients so a leaked URL
+        // 403s for everyone else (`add_media::grant_photo_reads`, best-effort).
         if !parsed.media_ids.is_empty() {
             grant_photo_reads(cp.host_client(), &parsed.media_ids, &recipients).await;
         }
@@ -194,60 +188,6 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         count,
     };
     serde_json::to_string(&reply).map_err(|e| format!("serialize reply: {e}"))
-}
-
-/// Read a child profile and assert `photo_consent == true`. A missing child or a
-/// store fault is a hard error (fail closed — never attach a photo to a child we
-/// can't confirm consent for). Reads through the record store (the child profile),
-/// NOT the guardianship table, so it is not a reach question (no fence concern).
-async fn assert_photo_consent(cp: &Chokepoint, child_id: &str) -> Result<(), String> {
-    let value = cp
-        .records()
-        .read("child", child_id)
-        .await
-        .map_err(|_| format!("{}", LogError::StoreDenied("log.add consent read".into())))?
-        .ok_or_else(|| format!("{}", LogError::NotFound(child_id.to_string())))?;
-    let child: Child =
-        serde_json::from_value(value).map_err(|e| format!("deserialize child: {e}"))?;
-    if !child.photo_consent {
-        return Err(format!("{}", LogError::PhotoConsentDenied(child_id.to_string())));
-    }
-    Ok(())
-}
-
-/// Grant `store:media/{id}:read` to `recipients` for every attached photo so
-/// ONLY reach-holders can fetch the bytes (the media-URL-leak defense,
-/// daily-feed-scope §Risks). Best-effort: `None` client (era-1/tests) ⇒ no-op;
-/// a per-grant fault is logged (a missing grant is a guardian lockout) but never
-/// fails the already-landed row. One call per (media_id) so a partial failure
-/// still grants the earlier ids.
-async fn grant_photo_reads(
-    client: Option<&lb_ext_native::SidecarClient>,
-    media_ids: &[String],
-    recipients: &[String],
-) {
-    let Some(client) = client else { return };
-    if recipients.is_empty() {
-        return; // A private child with no feed holders — nothing to grant.
-    }
-    for media_id in media_ids {
-        if let Err(e) = grant_media_read(client, media_id, recipients).await {
-            // Surfaced, not silent: a missing serve-grant locks a guardian out
-            // of a photo they're entitled to. A future milestone routes this to
-            // the platform audit reactor. (The message is assembled as a
-            // developer-facing audit line, not user chrome — like authz/'s
-            // eprintln audit; built via concat so the no-hardcoded-strings fence
-            // sees no user-facing prose literal.)
-            let audit = [
-                "care.log.add: media serve-grant failed for ",
-                media_id,
-                ": ",
-                &e.to_string(),
-            ]
-            .concat();
-            eprintln!("{audit}");
-        }
-    }
 }
 
 #[cfg(test)]
@@ -427,11 +367,8 @@ mod tests {
         assert!(res.unwrap_err().contains("already exists"));
     }
 
-    /// Feed-recipient resolution is unaffected by consent — a `receives_daily_feed`
-    /// guardian is a push target regardless of the child's photo flag. (Push I/O
-    /// is a no-op on the era-1 test path; this asserts the recipient resolution
-    /// the add path feeds into `push::decide` — the seam is exercised, the send
-    /// is skipped without a host client.)
+    /// Feed-recipient resolution the add path feeds into `push::decide` — the
+    /// seam is exercised; the send is skipped without a host client (era-1 test).
     #[tokio::test]
     async fn add_resolves_feed_recipients_for_the_child() {
         let store = Arc::new(Store::memory().await.unwrap());

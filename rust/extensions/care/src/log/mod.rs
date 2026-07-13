@@ -20,6 +20,7 @@
 //! `log.add` cap — deny-tested).
 
 pub mod add;
+mod add_media;
 pub mod correct;
 pub mod day;
 pub mod list;
