@@ -108,6 +108,45 @@ pub async fn resolve_era1_guardian_set(cp: &Chokepoint, principal: &Principal) -
         .collect()
 }
 
+/// Resolve the guardians who receive the daily feed for a child (era 1) — the
+/// push + emit recipient set for `care.log.add` (daily-feed-scope §Push:
+/// "`notify.send` to the guardians holding `receives_daily_feed` edges").
+///
+/// Lives HERE (inside `authz/`) because it reads the `guardianship` table — the
+/// grep fence (`check-authz-fence.sh`) forbids that word outside this module,
+/// and "which guardians reach this child, with which per-edge flag" IS a reach
+/// question. Returns only guardians whose edge is LIVE and carries
+/// `receives_daily_feed == true`: a `false` edge gets NEITHER feed NOR push
+/// (asserted in daily-feed tests), and an archived (unlinked) edge is dropped
+/// so a former guardian never receives a new entry. Each returned tuple is
+/// `(guardian_sub, receives_daily_feed)` — always `true` here, but the flag is
+/// carried explicitly so the caller reads intent, not a bare list.
+///
+/// Empty when no live feed-edge holder exists (a private child, or every edge
+/// opted out) — never an error (fail-closed: a store fault yields no
+/// recipients rather than a broadcast).
+pub async fn resolve_era1_feed_recipients(cp: &Chokepoint, child_id: &str) -> Vec<String> {
+    let rows = match list(&cp.store, &cp.ws, "guardianship", "child_id", child_id).await {
+        Ok(rs) => rs,
+        Err(_) => return Vec::new(),
+    };
+    rows.into_iter()
+        .filter_map(|row| {
+            let live = row.get("live").and_then(|v| v.as_bool()).unwrap_or(false);
+            let receives = row
+                .get("receives_daily_feed")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !live || !receives {
+                return None;
+            }
+            row.get("guardian_sub")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        })
+        .collect()
+}
+
 /// Resolve the rooms a staff member reaches (era 1).
 ///
 /// Lists all `staff_assignment` rows where `data.staff_sub = sub`. Empty

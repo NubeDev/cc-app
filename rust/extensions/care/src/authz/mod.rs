@@ -290,3 +290,18 @@ pub async fn reachable_rooms(cp: &Chokepoint, principal: &Principal) -> Vec<Stri
     }
     scope::resolve_era1_staff_rooms(cp, principal).await
 }
+
+/// The guardian subjects who receive the daily feed for `child_id` — the emit +
+/// push recipient set for `care.log.add` (daily-feed-scope §Push). Resolved
+/// through the chokepoint (it reads the `guardianship` table, walled behind the
+/// grep fence) so "who is a feed recipient" is answered in exactly one place.
+///
+/// Only LIVE edges carrying `receives_daily_feed == true` are returned: a
+/// `false` edge gets NEITHER feed NOR push, and an unlinked (archived) edge is
+/// dropped — a former guardian never receives a new entry. Empty is the normal
+/// "no recipients" answer (never an error). Reach-holder resolution stays
+/// era-1 (store-resolved) — the per-edge flag lives on the edge record, not in
+/// the era-2 scoped grant (same posture as [`reachable_rooms`]).
+pub async fn feed_recipients(cp: &Chokepoint, child_id: &str) -> Vec<String> {
+    scope::resolve_era1_feed_recipients(cp, child_id).await
+}
