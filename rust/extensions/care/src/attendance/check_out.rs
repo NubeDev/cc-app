@@ -107,8 +107,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .ok_or_else(|| "child not found".to_string())?;
     let child: Child =
         serde_json::from_value(child_value).map_err(|e| format!("deserialize child: {e}"))?;
-    let authorized_pickup_names: Vec<String> =
-        child.authorized_pickups.iter().map(|p| p.name.clone()).collect();
+    let authorized_pickup_names: Vec<String> = child
+        .authorized_pickups
+        .iter()
+        .map(|p| p.name.clone())
+        .collect();
 
     let roster = PickupRoster {
         can_pickup_guardians: facts.can_pickup_subs,
@@ -137,7 +140,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 (true, Some(reason))
             } else {
                 // HARD DENY — the staff device reads the localized reason.
-                return Err(t(locale, reason.catalog_key(), &[("name", &parsed.child_id)]));
+                return Err(t(
+                    locale,
+                    reason.catalog_key(),
+                    &[("name", &parsed.child_id)],
+                ));
             }
         }
     };
@@ -235,10 +242,14 @@ mod tests {
         if let Some(n) = custody_notes {
             edge["custody_notes"] = json!(n);
         }
-        store_create(store, ws, "guardianship", edge_id, &edge).await.unwrap();
+        store_create(store, ws, "guardianship", edge_id, &edge)
+            .await
+            .unwrap();
         // Guardian record so the name resolves for name-based authorization.
         let g = json!({ "name": "Sam Parent" });
-        store_create(store, ws, "guardian", guardian_sub, &g).await.unwrap();
+        store_create(store, ws, "guardian", guardian_sub, &g)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -260,7 +271,12 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["event_id"], "ev1");
         // Event was appended.
-        let ev = cp.records().read("attendance_event", "ev1").await.unwrap().unwrap();
+        let ev = cp
+            .records()
+            .read("attendance_event", "ev1")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(ev["kind"], "check_out");
         assert_eq!(ev["pickup_override"], false);
     }
@@ -282,7 +298,12 @@ mod tests {
         .expect("name-authorized check-out allowed");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["event_id"], "ev2");
-        assert!(cp.records().read("attendance_event", "ev2").await.unwrap().is_some());
+        assert!(cp
+            .records()
+            .read("attendance_event", "ev2")
+            .await
+            .unwrap()
+            .is_some());
     }
 
     #[tokio::test]
@@ -303,7 +324,12 @@ mod tests {
         .await
         .expect_err("stranger denied");
         // No event appended on a deny.
-        assert!(cp.records().read("attendance_event", "evX").await.unwrap().is_none());
+        assert!(cp
+            .records()
+            .read("attendance_event", "evX")
+            .await
+            .unwrap()
+            .is_none());
 
         // Stranger in Spanish — the message MUST differ (a Spanish teacher reads why).
         let err_es = run(
@@ -315,8 +341,16 @@ mod tests {
         .expect_err("stranger denied es");
 
         assert_ne!(err_en, err_es, "deny reason must localize");
-        assert!(err_es.contains("autorizada"), "spanish not_authorized text: {err_es}");
-        assert!(cp.records().read("attendance_event", "evY").await.unwrap().is_none());
+        assert!(
+            err_es.contains("autorizada"),
+            "spanish not_authorized text: {err_es}"
+        );
+        assert!(cp
+            .records()
+            .read("attendance_event", "evY")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]
@@ -325,7 +359,16 @@ mod tests {
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
         seed_child(&store, "acme", "leo", json!([])).await;
-        seed_edge(&store, "acme", "e1", "user:sam", "leo", true, Some("court order")).await;
+        seed_edge(
+            &store,
+            "acme",
+            "e1",
+            "user:sam",
+            "leo",
+            true,
+            Some("court order"),
+        )
+        .await;
 
         // A can_pickup guardian — but a custody hold denies unless admin override.
         let member_p = member(&key, "user:sam", "acme");
@@ -336,7 +379,12 @@ mod tests {
         )
         .await;
         assert!(denied.is_err(), "custody hold denies without override");
-        assert!(cp.records().read("attendance_event", "evH").await.unwrap().is_none());
+        assert!(cp
+            .records()
+            .read("attendance_event", "evH")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]
@@ -345,7 +393,16 @@ mod tests {
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
         seed_child(&store, "acme", "leo", json!([])).await;
-        seed_edge(&store, "acme", "e1", "user:sam", "leo", true, Some("court order")).await;
+        seed_edge(
+            &store,
+            "acme",
+            "e1",
+            "user:sam",
+            "leo",
+            true,
+            Some("court order"),
+        )
+        .await;
 
         let p = admin(&key, "acme");
         let out = run(
@@ -357,7 +414,12 @@ mod tests {
         .expect("admin override allowed");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["event_id"], "evO");
-        let ev = cp.records().read("attendance_event", "evO").await.unwrap().unwrap();
+        let ev = cp
+            .records()
+            .read("attendance_event", "evO")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(ev["pickup_override"], true);
         assert_eq!(ev["override_reason"], "custody_hold");
     }
@@ -368,7 +430,16 @@ mod tests {
         let key = SigningKey::generate();
         let cp = Chokepoint::new(store.clone(), "acme");
         seed_child(&store, "acme", "leo", json!([])).await;
-        seed_edge(&store, "acme", "e1", "user:sam", "leo", true, Some("court order")).await;
+        seed_edge(
+            &store,
+            "acme",
+            "e1",
+            "user:sam",
+            "leo",
+            true,
+            Some("court order"),
+        )
+        .await;
 
         // A Member sets pickup_override:true — the override is admin-capped, so
         // they are STILL denied and no event is written.
@@ -380,6 +451,11 @@ mod tests {
         )
         .await;
         assert!(denied.is_err(), "non-admin override must be denied");
-        assert!(cp.records().read("attendance_event", "evN").await.unwrap().is_none());
+        assert!(cp
+            .records()
+            .read("attendance_event", "evN")
+            .await
+            .unwrap()
+            .is_none());
     }
 }

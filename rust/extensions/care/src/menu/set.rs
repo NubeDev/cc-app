@@ -137,7 +137,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         })?;
 
     let reply = SetReply {
-        message: t(locale, "menu.saved", &[("slot", slot.key()), ("date", &menu.date)]),
+        message: t(
+            locale,
+            "menu.saved",
+            &[("slot", slot.key()), ("date", &menu.date)],
+        ),
         id,
     };
     serde_json::to_string(&reply).map_err(|e| format!("serialize reply: {e}"))

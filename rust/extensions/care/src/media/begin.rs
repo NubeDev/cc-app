@@ -51,9 +51,9 @@ pub async fn run(cp: &Chokepoint, _principal: &Principal, input: &str) -> Result
     // The v1 photos-only reject — the ONE boundary lb's core does not enforce.
     reject_non_photo(&parsed.mime).map_err(|e| format!("{e}"))?;
 
-    let client = cp
-        .host_client()
-        .ok_or_else(|| "care.media.begin needs a host client (no upload store on the era-1 path)".to_string())?;
+    let client = cp.host_client().ok_or_else(|| {
+        "care.media.begin needs a host client (no upload store on the era-1 path)".to_string()
+    })?;
 
     let out = client
         .call_tool(

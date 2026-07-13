@@ -76,7 +76,12 @@ pub async fn pickup_roster(cp: &Chokepoint, child_id: &str) -> GuardianPickupFac
         if !edge.live {
             continue;
         }
-        if edge.custody_notes.as_deref().map(str::trim).map_or(false, |s| !s.is_empty()) {
+        if edge
+            .custody_notes
+            .as_deref()
+            .map(str::trim)
+            .map_or(false, |s| !s.is_empty())
+        {
             facts.custody_hold = true;
         }
         if edge.can_pickup {

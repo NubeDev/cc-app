@@ -200,7 +200,13 @@ mod tests {
     use std::sync::Arc;
 
     /// One parametric principal builder — role + sub + caps.
-    fn principal(signing: &SigningKey, sub: &str, ws: &str, role: Role, caps: &[&str]) -> Principal {
+    fn principal(
+        signing: &SigningKey,
+        sub: &str,
+        ws: &str,
+        role: Role,
+        caps: &[&str],
+    ) -> Principal {
         let claims = Claims {
             sub: sub.into(),
             ws: ws.into(),
@@ -214,20 +220,29 @@ mod tests {
         verify(signing, &mint(signing, &claims), 1).expect("verify")
     }
     fn admin(k: &SigningKey, ws: &str) -> Principal {
-        let caps = ["mcp:care.child.create:call", "mcp:care.guardianship.link:call", "mcp:care.log.list:call"];
+        let caps = [
+            "mcp:care.child.create:call",
+            "mcp:care.guardianship.link:call",
+            "mcp:care.log.list:call",
+        ];
         principal(k, "user:admin", ws, Role::WorkspaceAdmin, &caps)
     }
     fn staff(k: &SigningKey, ws: &str) -> Principal {
-        principal(k, "user:teacher", ws, Role::Member, &["mcp:care.log.add:call", "mcp:care.log.list:call"])
+        principal(
+            k,
+            "user:teacher",
+            ws,
+            Role::Member,
+            &["mcp:care.log.add:call", "mcp:care.log.list:call"],
+        )
     }
     fn member(k: &SigningKey, sub: &str, ws: &str) -> Principal {
         principal(k, sub, ws, Role::Member, &["mcp:care.log.list:call"])
     }
 
     async fn seed_child(cp: &Chokepoint, a: &Principal, id: &str) {
-        let input = format!(
-            r#"{{"id":"{id}","name":"{id}","dob":"2021-03-15","photo_consent":true}}"#
-        );
+        let input =
+            format!(r#"{{"id":"{id}","name":"{id}","dob":"2021-03-15","photo_consent":true}}"#);
         child_create::run(cp, a, &input).await.expect("seed child");
     }
 
@@ -267,9 +282,33 @@ mod tests {
             guardianship_link::run(&cp, &a, input).await.expect("link");
         }
 
-        seed_entry(&cp, &s, "log:leo:1", "child:leo", "room:possums", "2026-07-13T08:02:00Z").await;
-        seed_entry(&cp, &s, "log:leo:2", "child:leo", "room:possums", "2026-07-13T15:30:00Z").await;
-        seed_entry(&cp, &s, "log:mia:1", "child:mia", "room:wombats", "2026-07-13T08:10:00Z").await;
+        seed_entry(
+            &cp,
+            &s,
+            "log:leo:1",
+            "child:leo",
+            "room:possums",
+            "2026-07-13T08:02:00Z",
+        )
+        .await;
+        seed_entry(
+            &cp,
+            &s,
+            "log:leo:2",
+            "child:leo",
+            "room:possums",
+            "2026-07-13T15:30:00Z",
+        )
+        .await;
+        seed_entry(
+            &cp,
+            &s,
+            "log:mia:1",
+            "child:mia",
+            "room:wombats",
+            "2026-07-13T08:10:00Z",
+        )
+        .await;
 
         (store, key)
     }
@@ -307,7 +346,10 @@ mod tests {
         assert_eq!(e.len(), 2, "Ana sees Leo's two entries only");
         for row in &e {
             assert_eq!(row["child_id"], "child:leo");
-            assert_ne!(row["child_id"], "child:mia", "MUST NOT leak Mia across families");
+            assert_ne!(
+                row["child_id"], "child:mia",
+                "MUST NOT leak Mia across families"
+            );
         }
     }
 
@@ -355,7 +397,9 @@ mod tests {
         let cursor1 = v1["next_cursor"].as_str().expect("more rows remain");
 
         // Page 2: follow the cursor → next 2 rows + another cursor.
-        let out2 = run(&cp, &a, &format!(r#"{{"limit":2,"after":"{cursor1}"}}"#)).await.unwrap();
+        let out2 = run(&cp, &a, &format!(r#"{{"limit":2,"after":"{cursor1}"}}"#))
+            .await
+            .unwrap();
         let v2: serde_json::Value = serde_json::from_str(&out2).unwrap();
         let e2 = v2["entries"].as_array().unwrap();
         assert_eq!(e2.len(), 2);
@@ -364,12 +408,17 @@ mod tests {
         let cursor2 = v2["next_cursor"].as_str().expect("one row remains");
 
         // Page 3 (last): the final row, next_cursor None.
-        let out3 = run(&cp, &a, &format!(r#"{{"limit":2,"after":"{cursor2}"}}"#)).await.unwrap();
+        let out3 = run(&cp, &a, &format!(r#"{{"limit":2,"after":"{cursor2}"}}"#))
+            .await
+            .unwrap();
         let v3: serde_json::Value = serde_json::from_str(&out3).unwrap();
         let e3 = v3["entries"].as_array().unwrap();
         assert_eq!(e3.len(), 1);
         assert_eq!(e3[0]["at"], "2026-07-13T12:00:00Z");
-        assert!(v3.get("next_cursor").is_none(), "last page has no next_cursor");
+        assert!(
+            v3.get("next_cursor").is_none(),
+            "last page has no next_cursor"
+        );
     }
 
     #[tokio::test]
@@ -380,7 +429,11 @@ mod tests {
 
         // Sam reaches both Leo and Mia (3 entries); filter to Leo → 2 rows.
         let unfiltered = run(&cp, &sam, "").await.unwrap();
-        assert_eq!(entries_of(&unfiltered).len(), 3, "Sam reaches both children");
+        assert_eq!(
+            entries_of(&unfiltered).len(),
+            3,
+            "Sam reaches both children"
+        );
 
         let out = run(&cp, &sam, r#"{"child_id":"child:leo"}"#).await.unwrap();
         let e = entries_of(&out);

@@ -37,9 +37,9 @@ pub async fn run(cp: &Chokepoint, _principal: &Principal, input: &str) -> Result
     let parsed: CommitInput =
         serde_json::from_str(input).map_err(|e| format!("invalid care.media.commit input: {e}"))?;
 
-    let client = cp
-        .host_client()
-        .ok_or_else(|| "care.media.commit needs a host client (no upload store on the era-1 path)".to_string())?;
+    let client = cp.host_client().ok_or_else(|| {
+        "care.media.commit needs a host client (no upload store on the era-1 path)".to_string()
+    })?;
 
     let out = client
         .call_tool(

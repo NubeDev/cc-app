@@ -60,8 +60,8 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::menu::{MenuItem, Substitution};
     use crate::menu::allergen::Allergen;
+    use crate::menu::{MenuItem, Substitution};
     use lb_auth::{mint, verify, Claims, Role, SigningKey};
     use lb_store::{create as store_create, Store};
     use serde_json::json;
@@ -114,9 +114,15 @@ mod tests {
             }],
         };
         let id = Menu::id(DATE, ROOM, Slot::Lunch);
-        store_create(store, "acme", "menu", &id, &serde_json::to_value(&menu).unwrap())
-            .await
-            .unwrap();
+        store_create(
+            store,
+            "acme",
+            "menu",
+            &id,
+            &serde_json::to_value(&menu).unwrap(),
+        )
+        .await
+        .unwrap();
         id
     }
 
@@ -143,7 +149,9 @@ mod tests {
         let cp = Chokepoint::new(store.clone(), "acme");
         seed_menu(&store).await;
 
-        let out = run(&cp, &admin(&key), &get_input()).await.expect("admin get");
+        let out = run(&cp, &admin(&key), &get_input())
+            .await
+            .expect("admin get");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["room_id"], ROOM);
         assert_eq!(v["items"][0]["name"], "Peanut satay");

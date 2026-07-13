@@ -32,6 +32,4 @@ mod records;
 
 pub use gate::{decide as pickup_decide, Collector, PickupRoster};
 pub use occupancy::{fold_now, RoomOccupancy};
-pub use records::{
-    validate_timestamp, AttendanceError, AttendanceEvent, EventKind, PickupDeny,
-};
+pub use records::{validate_timestamp, AttendanceError, AttendanceEvent, EventKind, PickupDeny};

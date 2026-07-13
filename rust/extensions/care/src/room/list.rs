@@ -119,7 +119,10 @@ mod tests {
         // record body has none; a missing id left the room picker unusable).
         let ids: std::collections::HashSet<&str> =
             v.iter().filter_map(|r| r["id"].as_str()).collect();
-        assert!(ids.contains("possums") && ids.contains("koalas"), "rows carry their id: {v:?}");
+        assert!(
+            ids.contains("possums") && ids.contains("koalas"),
+            "rows carry their id: {v:?}"
+        );
     }
 
     #[tokio::test]

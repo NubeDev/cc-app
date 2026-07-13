@@ -32,7 +32,10 @@ pub async fn assert_photo_consent(cp: &Chokepoint, child_id: &str) -> Result<(),
     let child: Child =
         serde_json::from_value(value).map_err(|e| format!("deserialize child: {e}"))?;
     if !child.photo_consent {
-        return Err(format!("{}", LogError::PhotoConsentDenied(child_id.to_string())));
+        return Err(format!(
+            "{}",
+            LogError::PhotoConsentDenied(child_id.to_string())
+        ));
     }
     Ok(())
 }

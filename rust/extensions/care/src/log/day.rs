@@ -121,7 +121,13 @@ mod tests {
     use std::sync::Arc;
 
     /// One parametric principal builder — role + sub + caps.
-    fn principal(signing: &SigningKey, sub: &str, ws: &str, role: Role, caps: &[&str]) -> Principal {
+    fn principal(
+        signing: &SigningKey,
+        sub: &str,
+        ws: &str,
+        role: Role,
+        caps: &[&str],
+    ) -> Principal {
         let claims = Claims {
             sub: sub.into(),
             ws: ws.into(),
@@ -135,10 +141,20 @@ mod tests {
         verify(signing, &mint(signing, &claims), 1).expect("verify")
     }
     fn staff(k: &SigningKey, ws: &str) -> Principal {
-        principal(k, "user:teacher", ws, Role::Member, &["mcp:care.log.add:call"])
+        principal(
+            k,
+            "user:teacher",
+            ws,
+            Role::Member,
+            &["mcp:care.log.add:call"],
+        )
     }
     fn admin(k: &SigningKey, ws: &str) -> Principal {
-        let caps = ["mcp:care.child.create:call", "mcp:care.guardianship.link:call", "mcp:care.log.day:call"];
+        let caps = [
+            "mcp:care.child.create:call",
+            "mcp:care.guardianship.link:call",
+            "mcp:care.log.day:call",
+        ];
         principal(k, "user:admin", ws, Role::WorkspaceAdmin, &caps)
     }
     fn guardian(k: &SigningKey, sub: &str, ws: &str) -> Principal {
@@ -248,7 +264,12 @@ mod tests {
 
         // A stranger (no edge) is denied — fail closed, never an empty rollup.
         let stranger = guardian(&key, "user:stranger", "acme");
-        let denied = run(&cp, &stranger, r#"{"child_id":"child:leo","date":"2026-07-14"}"#).await;
+        let denied = run(
+            &cp,
+            &stranger,
+            r#"{"child_id":"child:leo","date":"2026-07-14"}"#,
+        )
+        .await;
         assert!(denied.is_err(), "a stranger MUST be denied, not shown []");
 
         // Link Ana → Leo; now she reaches the rollup.
@@ -278,7 +299,13 @@ mod tests {
 
         let s = staff(&key, "acme");
         seed_entry(
-            &cp, &s, "log:d1", "child:leo", "note", "2026-07-14T09:00:00Z", r#","note":"today""#,
+            &cp,
+            &s,
+            "log:d1",
+            "child:leo",
+            "note",
+            "2026-07-14T09:00:00Z",
+            r#","note":"today""#,
         )
         .await;
         // A row on a DIFFERENT date — must be excluded.
@@ -297,7 +324,11 @@ mod tests {
             .await
             .expect("rollup");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["entries"].as_array().unwrap().len(), 1, "only the asked date");
+        assert_eq!(
+            v["entries"].as_array().unwrap().len(),
+            1,
+            "only the asked date"
+        );
         assert_eq!(v["entries"][0]["note"], "today");
     }
 
@@ -312,12 +343,24 @@ mod tests {
 
         let s = staff(&key, "acme");
         seed_entry(
-            &cp, &s, "log:leo", "child:leo", "note", "2026-07-14T09:00:00Z", r#","note":"leo""#,
+            &cp,
+            &s,
+            "log:leo",
+            "child:leo",
+            "note",
+            "2026-07-14T09:00:00Z",
+            r#","note":"leo""#,
         )
         .await;
         // A row for Mia — Leo's rollup must exclude it.
         seed_entry(
-            &cp, &s, "log:mia", "child:mia", "note", "2026-07-14T09:00:00Z", r#","note":"mia""#,
+            &cp,
+            &s,
+            "log:mia",
+            "child:mia",
+            "note",
+            "2026-07-14T09:00:00Z",
+            r#","note":"mia""#,
         )
         .await;
 
@@ -385,7 +428,11 @@ mod tests {
             .expect("rollup");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         // The original is superseded; only the compensating row survives.
-        assert_eq!(v["entries"].as_array().unwrap().len(), 1, "original dropped");
+        assert_eq!(
+            v["entries"].as_array().unwrap().len(),
+            1,
+            "original dropped"
+        );
         assert_eq!(v["entries"][0]["meal"]["portion"], "all");
         assert_eq!(v["summary"]["meal"], 1);
     }

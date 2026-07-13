@@ -46,10 +46,7 @@ async fn seed() -> (Arc<Store>, lb_auth::SigningKey) {
 
     // Children — the child record is the SINGLE source of allergy truth the
     // derivation intersects on; `room_id` places the child in a room's plan.
-    for (id, name, allergen, room) in [
-        (LEO, "Leo", "peanut", POSS),
-        (MIA, "Mia", "egg", KOAL),
-    ] {
+    for (id, name, allergen, room) in [(LEO, "Leo", "peanut", POSS), (MIA, "Mia", "egg", KOAL)] {
         store_create(
             &store,
             WS,

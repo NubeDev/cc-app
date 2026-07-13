@@ -148,7 +148,10 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["subject"], "care.feed.child:leo");
         assert_eq!(v["event"], "message");
-        assert!(v["stream_path"].as_str().unwrap().contains("care.feed.child:leo"));
+        assert!(v["stream_path"]
+            .as_str()
+            .unwrap()
+            .contains("care.feed.child:leo"));
     }
 
     /// RULE 7: a STRANGER guardian (no edge) is DENIED at subscribe — never
@@ -162,7 +165,10 @@ mod tests {
         let stranger = member(&key, "user:mallory", "acme");
 
         let res = run(&cp, &stranger, r#"{"child_id":"child:leo"}"#).await;
-        assert!(res.is_err(), "a stranger must be denied at subscribe (rule 7)");
+        assert!(
+            res.is_err(),
+            "a stranger must be denied at subscribe (rule 7)"
+        );
     }
 
     /// Admin may watch any child (audited role pass in the chokepoint).

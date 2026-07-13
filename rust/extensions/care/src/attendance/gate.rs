@@ -181,7 +181,10 @@ mod tests {
         // A blank name must not match a blank slot — the guard `!name.is_empty()`.
         let mut r = PickupRoster::default();
         r.authorized_pickup_names = vec!["".into()];
-        let c = Collector { sub: None, name: "".into() };
+        let c = Collector {
+            sub: None,
+            name: "".into(),
+        };
         assert!(decide(&c, &r).is_err());
     }
 }
