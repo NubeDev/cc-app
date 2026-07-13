@@ -3,7 +3,7 @@ import { useMcpClient } from "@nube/ext-ui-sdk/runtime";
 export function useCareApi() {
   const call = useMcpClient();
   return {
-    list: <T>(verb: string, args?: unknown) =>
+    list: <T>(verb: string, args?: Record<string, unknown>) =>
       call<T[]>(`care.${verb}.list`, args ?? {}),
     get: <T>(verb: string, id: string) => call<T>(`care.${verb}.get`, { id }),
     /**
@@ -11,6 +11,6 @@ export function useCareApi() {
      * shape (`create` / `update` / `archive` / `link` / `unlink` etc).
      * Pass the FULL verb including the action (e.g. `"center.create"`).
      */
-    run: <T>(verb: string, args: unknown) => call<T>(`care.${verb}`, args),
+    run: <T>(verb: string, args: Record<string, unknown>) => call<T>(`care.${verb}`, args),
   };
 }
