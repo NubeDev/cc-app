@@ -1,41 +1,24 @@
 //! `care.log.add` — staff append a daily-feed entry, multi-child fan-out.
 //! Cap: `mcp:care.log.add:call` (staff; guardians hold no such cap — deny-tested).
 //!
-//! ## A staff WRITE, not a guardian read — no reach gate here
+//! A staff WRITE, not a guardian read — NO `assert_reach` on the write (the reach
+//! gate protects the guardian READS `log::list`/`day`/`feed::watch`); the feed/
+//! push fan-out goes only to `authz::feed_recipients` (live feed-edge holders).
 //!
-//! Like `attendance::check_in`, this is performed by a staff member who holds
-//! the `log.add` cap at the host wall; a guardian never reaches this body
-//! (guardians read + acknowledge, never author — daily-feed-scope §Non-goals).
-//! So there is NO `assert_reach` on the WRITE. The reach gate protects guardian
-//! READS (`log::list` / `log::day` / `feed::watch`), and the feed/push fan-out
-//! goes ONLY to `authz::feed_recipients` (the live `receives_daily_feed` holders).
+//! Multi-child fan-out: one gesture logs N per-child rows at
+//! `log::entry_id(base, child)`, each independently addressable/correctable/
+//! reach-filtered/pushed. Atomic = "no partial MALFORMED write": ALL validation
+//! (payload, timestamp, photo-consent for EVERY child) runs before the first row
+//! lands; a re-tapped gesture conflicts (never double-logs).
 //!
-//! ## Multi-child fan-out — one gesture, N per-child rows, validated-then-written
+//! Photo consent is enforced AT WRITE (`add_media::assert_photo_consent`): a
+//! `media_ids` entry requires `child.photo_consent == true` for every tapped
+//! child (video is rejected on the media path — v1 photos only).
 //!
-//! One tap ("lunch for the room") logs for many children; each becomes its own
-//! `daily_log` row at `log::entry_id(base, child)` so every row is independently
-//! addressable, correctable, reach-filtered, and pushed (records.rs §"One entry
-//! per (type, child)"). Atomicity is "no partial MALFORMED write": ALL validation
-//! (kind payload, timestamp, AND photo-consent for EVERY child) runs BEFORE the
-//! first row is written, so a bad tap rejects wholesale rather than landing three
-//! good rows and failing the fourth. Each row is a first-write; a re-tapped
-//! gesture (same base) conflicts, never silently double-logs.
-//!
-//! ## Photo consent enforced AT WRITE, never at render (daily-feed-scope §"Photo consent")
-//!
-//! If the entry carries `media_ids`, EVERY tapped child must hold
-//! `child.photo_consent == true` — a forbidding child blocks the attach at the
-//! write boundary (`add_media::assert_photo_consent`; video is rejected on the
-//! media path at commit — v1 the feed shows photos only).
-//!
-//! ## Motion after the record (best-effort) — bus emit + push
-//!
-//! Each landed row publishes onto its child's `feed_subject` (the SSE feed
-//! appends live) and dispatches push per `push::decide` (incident/medication
-//! always; else feed-only v1). Motion is best-effort: the record is the source
-//! of truth, so a bus/push fault never fails the already-landed write
-//! (`feed::emit`). On the era-1/test path (no host client) the rows still land;
-//! only the fan-out is skipped.
+//! Motion after the record is best-effort: each row publishes onto its child's
+//! `feed_subject` + dispatches push per `push::decide` (incident/medication
+//! always). A bus/push fault never fails the already-landed write; on the era-1
+//! test path (no host client) the rows land and the fan-out is skipped.
 
 use lb_auth::Principal;
 
@@ -109,9 +92,8 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
     let locale = Locale::parse(parsed.locale.as_deref().unwrap_or("en")).unwrap_or(Locale::En);
     let author = principal.sub().to_string();
 
-    // A template row (per-child rows clone this, swapping only `child_id`). We
-    // validate the kind payload ONCE on the template — the payload is shared
-    // across the fan-out (the whole room ate the same lunch).
+    // A template row (per-child rows clone this, swapping only `child_id`); the
+    // kind payload is validated ONCE on it (shared across the fan-out).
     let template = DailyLog {
         kind,
         child_id: String::new(), // set per child below
