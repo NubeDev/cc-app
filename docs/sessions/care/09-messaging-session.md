@@ -33,23 +33,28 @@ MCP surface confirmed reachable over the callback: `channel.create`, `channel.po
 - `messaging/channel_id.rs` — the channel-id conventions (`care-child/room/center-<id>`)
   + `pub_cap`/`sub_cap` + `ChannelRole::{Full,ReadOnly}::caps` (read-only = sub w/o pub).
 
-## Remaining (build order)
+## Built this session — m09 CLOSED
 
-1. **Reconciler** (leak vector — careful, direct): `authz/messaging.rs` behind the
-   fence — `channel_members(cp, channel)` derives the (subject, ChannelRole) set from
-   `guardianship` (live + `receives_messaging`) + `staff_assignment` (room staff). Then
-   `messaging/reconcile.rs` = grant/revoke the delta via `grants.assign`/`revoke`.
-   Called from every edge/assignment handler + an idempotent sweep verb.
-2. **Provisioning**: child/room/center create → `channel.create` (idempotent); archive
-   → archive channel (history retained). Hook into existing create/archive verbs.
-3. **Handler hooks**: `guardianship.link/unlink/update`, staff assignment create/remove,
-   room-move → call reconcile in the same handler (same transaction discipline as grants).
-4. **Posting policy**: falls out of the grant (Full=pub+sub, ReadOnly=sub). Announcements
-   compose verb for admin/staff.
-5. **UI**: guardian Messages tab, staff room/child threads, admin announcements compose
-   (lb channel widgets where possible).
-6. **Matrix**: `matrix_messaging.rs` — post as Ana in Leo's channel → Mia's-mum never
-   sees it; Ana has no path to Mia's channel; unlink → next read denied; reconciler
-   idempotent under double events; sweep repairs; archive retains history stops posts;
-   guardian announcement post denied.
-7. Caps/TOOLS/`approved_grant`/`extension.toml` wiring (lock-step) + en/es catalog keys.
+1. **Reconciler** ✅ — `authz::channel_members` (`resolve_child/room_channel_members`
+   in `authz/scope.rs`, behind the fence) + `messaging/reconcile.rs` (grant/revoke via
+   `grants.assign/revoke`, no-client no-op, `reconcile_channel` healing sweep).
+2. **Verbs** ✅ — `care.channel.reconcile` (provision `channel.create` + heal),
+   `care.announce.post` (read-only-for-guardians enforced twice).
+3. **Handler hooks** ✅ — `guardianship.link/unlink/update` grant/revoke channel
+   membership in the same breath as the edge.
+4. **UI** ✅ (subagent) — `MessagesPage` + `AnnouncementsCompose`, Messages tab wired.
+5. **Matrix** ✅ — `matrix_messaging.rs` (derivation-level cross-family sweep).
+6. **Wiring** ✅ — call.rs / care_mount / extension.toml / live_node_support lock-step
+   (channel.* verbs + `bus:chan/care-**:{pub,sub}` holds; + fixed missing
+   `store:media/**:read` hold from m08).
+
+## Deferred to m10 (honest follow-ons)
+
+- **Archive → stop-posts**: provisioning is on-demand (`channel.reconcile`), not eager
+  on entity-create/archive — the archive hook lands with entity-archive wiring.
+- **Staff room-move reconcile**: no standalone staff-reassignment verb exists to hook
+  (assignments minted via invite-accept) — lands when that verb exists. Room-channel
+  STAFF derivation is built + tested.
+- **ext-UI channel SSE**: the ext-ui-sdk runtime exposes no gateway origin/token, so
+  the UI polls `channel.history` for liveness (the m08 FeedPage pattern). TODO(sse)
+  in `api/channels.ts` for when the runtime exposes them.
