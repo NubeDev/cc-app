@@ -32,7 +32,9 @@ use crate::attendance::{pickup_decide, AttendanceEvent, Collector, EventKind, Pi
 use crate::authz::{pickup_roster, Chokepoint};
 use crate::center::Locale;
 use crate::child::Child;
+use crate::feed::publish_entry;
 use crate::i18n::t;
+use crate::log::feed_subject;
 
 /// The check-out request. `child_id` is required — check_out is child-only (a
 /// child leaves); staff-presence check-out is out of scope here.
@@ -160,6 +162,11 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         .create("attendance_event", &parsed.event_id, &value)
         .await
         .map_err(|e| format!("append check-out event: {e}"))?;
+
+    // Attendance → feed emit (the m06 deferral, wired at m08): a child departure
+    // appears in the guardian's live feed onto the same per-child subject the
+    // daily-feed entries use. Best-effort (the ledger row is the source of truth).
+    publish_entry(cp.host_client(), &feed_subject(&parsed.child_id), &value).await;
 
     let msg_key = if pickup_override {
         "attendance.override_recorded"

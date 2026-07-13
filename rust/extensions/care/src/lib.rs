@@ -47,6 +47,7 @@ pub mod guardian;
 pub mod guardianship;
 pub mod invite;
 pub mod log;
+pub mod media;
 pub mod menu;
 pub mod push;
 pub mod room;
@@ -296,6 +297,8 @@ fn synthetic_admin() -> Principal {
             "mcp:care.log.correct:call".into(),
             "mcp:care.log.day:call".into(),
             "mcp:care.feed.watch:call".into(),
+            "mcp:care.media.begin:call".into(),
+            "mcp:care.media.commit:call".into(),
         ],
         iat: 0,
         exp: u64::MAX,

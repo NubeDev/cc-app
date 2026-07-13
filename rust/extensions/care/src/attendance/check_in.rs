@@ -30,7 +30,9 @@ use lb_auth::Principal;
 use crate::attendance::{validate_timestamp, AttendanceEvent, AttendanceError, EventKind};
 use crate::authz::{Chokepoint, RecordError};
 use crate::center::Locale;
+use crate::feed::publish_entry;
 use crate::i18n::t;
+use crate::log::feed_subject;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct CheckInInput {
@@ -122,6 +124,15 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
                 format!("{}: {s}", AttendanceError::StoreDenied("check_in".into()))
             }
         })?;
+
+    // Attendance → feed emit (the m06 deferral, wired at m08): a CHILD arrival
+    // appears in the guardian's live feed onto the same per-child subject the
+    // daily-feed entries use (`feed_subject`). Best-effort (the ledger row is the
+    // source of truth; a bus fault never fails the tap); staff-presence events
+    // (no child) never emit — they are not a family-facing feed item.
+    if let Some(child_id) = event.child_id.as_deref() {
+        publish_entry(cp.host_client(), &feed_subject(child_id), &value).await;
+    }
 
     let reply = CheckInReply {
         message: t(locale, "attendance.checked_in", &[("name", &display)]),

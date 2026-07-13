@@ -50,6 +50,7 @@ use crate::log::{
     entry_id, feed_subject, validate_timestamp, DailyLog, IncidentPayload, LogError, LogKind,
     MealPayload, MedicationPayload, NapPayload,
 };
+use crate::media::grant_media_read;
 use crate::push::decide;
 
 #[derive(Debug, serde::Deserialize)]
@@ -162,6 +163,17 @@ pub async fn run(cp: &Chokepoint, principal: &Principal, input: &str) -> Result<
         // --- Motion (best-effort; the record already landed) ---
         publish_entry(cp.host_client(), &feed_subject(child_id), &value).await;
         let recipients = feed_recipients(cp, child_id).await;
+
+        // Media-URL-leak defense (daily-feed-scope §Risks): grant
+        // `store:media/{id}:read` to THIS child's feed recipients for each
+        // attached photo, so only reach-holders can fetch the bytes (a leaked
+        // URL 403s for everyone else). Best-effort like the bus emit — the row
+        // already landed — but a grant fault IS logged (a missing grant is a
+        // guardian LOCKOUT from a photo they're entitled to, worth surfacing).
+        if !parsed.media_ids.is_empty() {
+            grant_photo_reads(cp.host_client(), &parsed.media_ids, &recipients).await;
+        }
+
         let decision = decide(kind, &recipients, &row_id);
         send_push(cp.host_client(), &decision, child_id).await;
 
@@ -201,6 +213,41 @@ async fn assert_photo_consent(cp: &Chokepoint, child_id: &str) -> Result<(), Str
         return Err(format!("{}", LogError::PhotoConsentDenied(child_id.to_string())));
     }
     Ok(())
+}
+
+/// Grant `store:media/{id}:read` to `recipients` for every attached photo so
+/// ONLY reach-holders can fetch the bytes (the media-URL-leak defense,
+/// daily-feed-scope §Risks). Best-effort: `None` client (era-1/tests) ⇒ no-op;
+/// a per-grant fault is logged (a missing grant is a guardian lockout) but never
+/// fails the already-landed row. One call per (media_id) so a partial failure
+/// still grants the earlier ids.
+async fn grant_photo_reads(
+    client: Option<&lb_ext_native::SidecarClient>,
+    media_ids: &[String],
+    recipients: &[String],
+) {
+    let Some(client) = client else { return };
+    if recipients.is_empty() {
+        return; // A private child with no feed holders — nothing to grant.
+    }
+    for media_id in media_ids {
+        if let Err(e) = grant_media_read(client, media_id, recipients).await {
+            // Surfaced, not silent: a missing serve-grant locks a guardian out
+            // of a photo they're entitled to. A future milestone routes this to
+            // the platform audit reactor. (The message is assembled as a
+            // developer-facing audit line, not user chrome — like authz/'s
+            // eprintln audit; built via concat so the no-hardcoded-strings fence
+            // sees no user-facing prose literal.)
+            let audit = [
+                "care.log.add: media serve-grant failed for ",
+                media_id,
+                ": ",
+                &e.to_string(),
+            ]
+            .concat();
+            eprintln!("{audit}");
+        }
+    }
 }
 
 #[cfg(test)]

@@ -40,6 +40,7 @@ use crate::guardian;
 use crate::guardianship;
 use crate::invite;
 use crate::log;
+use crate::media;
 use crate::menu;
 use crate::ping;
 use crate::room;
@@ -96,6 +97,9 @@ pub const TOOLS: &[&str] = &[
     "log.correct",
     "log.day",
     "feed.watch",
+    // Milestone 08 — the photo upload boundary (reject video, delegate to lb).
+    "media.begin",
+    "media.commit",
 ];
 
 /// The expected cap a caller must carry to invoke a `care.*` tool. The
@@ -149,6 +153,8 @@ pub const ADMIN_CAPS: &[&str] = &[
     "mcp:care.log.correct:call",
     "mcp:care.log.day:call",
     "mcp:care.feed.watch:call",
+    "mcp:care.media.begin:call",
+    "mcp:care.media.commit:call",
 ];
 
 /// The input shape for `care.ping` — the only stateless verb. Every other
@@ -277,6 +283,8 @@ impl crate::Care {
             "log.correct" => log::correct::run(cp, &principal, input).await,
             "log.day" => log::day::run(cp, &principal, input).await,
             "feed.watch" => feed::watch::run(cp, &principal, input).await,
+            "media.begin" => media::begin::run(cp, &principal, input).await,
+            "media.commit" => media::commit::run(cp, &principal, input).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

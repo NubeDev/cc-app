@@ -95,6 +95,9 @@ request = [
     "mcp:care.log.correct:call",
     "mcp:care.log.day:call",
     "mcp:care.feed.watch:call",
+    # the photo upload boundary (reject video, delegate to lb media.upload_*)
+    "mcp:care.media.begin:call",
+    "mcp:care.media.commit:call",
 
     # 2. generic store surface (Part B — record I/O over the host callback)
     "mcp:store.write:call",
@@ -124,6 +127,14 @@ request = [
     "mcp:media.upload_begin:call",
     "mcp:media.upload_commit:call",
     "mcp:media.get:call",
+    # the media-URL-leak defense (daily-feed-scope §Risks): the sidecar grants
+    # a per-photo `store:media/{id}:read` to the child's feed recipients so ONLY
+    # reach-holders fetch the bytes. lb's `grants.assign` no-widening rule
+    # (host `authz/grants.rs` — `holds_cap`) requires the GRANTER to hold a cap
+    # that matches what it grants, so the sidecar must itself hold this recursive
+    # wildcard (`caps/grammar.rs` `**` matches `media/{id}`). It is the granter
+    # cap for `media::serve_grant`, not a verb the sidecar serves.
+    "store:media/**:read",
 
     # 3. era-2 reach + grant derivation + invites (host-callback verbs)
     "mcp:authz.check_scoped:call",
