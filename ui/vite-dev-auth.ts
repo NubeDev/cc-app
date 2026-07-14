@@ -24,7 +24,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GATEWAY_URL =
-  process.env.VITE_GATEWAY_URL || process.env.CC_GATEWAY_URL || "http://127.0.0.1:8080";
+  process.env.VITE_GATEWAY_URL || process.env.CC_GATEWAY_URL || "http://127.0.0.1:8391";
 
 // The one dev workspace the shell logs into. The gateway's membership resolve is
 // the real gate; this is only the default `workspace` we send with a login handle.

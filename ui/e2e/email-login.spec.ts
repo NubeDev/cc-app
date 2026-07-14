@@ -11,7 +11,7 @@ import { test, expect } from "@playwright/test";
 //   → sign out → /login with email + password → lands on /workspaces
 //   → a WRONG password is rejected (PasswordHash actually bites).
 //
-// Prereq: `make dev` (node :8080 in PasswordHash mode + shell :5173) + `make seed`.
+// Prereq: `make dev` (node :8391 in PasswordHash mode + shell :5391) + `make seed`.
 // The guardian is provisioned FRESH per run (a unique id/email) so the invite is
 // always redeemable and the test is re-runnable without a store reset.
 

@@ -60,10 +60,10 @@ LB_TAG ?= node-v0.4.3
 # Vite dev server listens on UI_PORT (strictPort in vite.config.ts — change it there too if
 # you override this). We only track the ports `make kill` must free.
 GW_HOST ?= 127.0.0.1
-GW_PORT ?= 8080
+GW_PORT ?= 8391
 GW_ADDR := $(GW_HOST):$(GW_PORT)
 GW_URL  := http://$(GW_HOST):$(GW_PORT)
-UI_PORT ?= 5173
+UI_PORT ?= 5391
 
 # The workspace the node serves. One workspace is enough for the demo (= tenant).
 WS ?= acme

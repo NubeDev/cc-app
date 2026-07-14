@@ -22,7 +22,7 @@
 # Exit code: non-zero if any REQUIRED assertion fails (the host layer + admin care reads).
 set -uo pipefail
 
-GW_URL="${GW_URL:-http://127.0.0.1:8080}"
+GW_URL="${GW_URL:-http://127.0.0.1:8391}"
 WS="${WS:-acme}"
 ADMIN_USER="${ADMIN_USER:-user:ada}"
 

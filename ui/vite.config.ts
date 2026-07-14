@@ -5,6 +5,11 @@ import { fileURLToPath, URL } from "node:url";
 import { devAuth } from "./vite-dev-auth";
 
 export default defineConfig({
+  // Dev server port — kept in sync with the Makefile's UI_PORT (5391). strictPort
+  // so a clash fails loudly rather than silently hopping to another port (which
+  // would break the seed/e2e URLs). Moved off Vite's default 5173 to avoid
+  // clashing with other local projects.
+  server: { port: 5391, strictPort: true },
   resolve: {
     // `@/…` → src/ (the shadcn import alias, mirrors tsconfig paths).
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

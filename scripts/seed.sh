@@ -29,7 +29,7 @@
 # Overridable knobs (env): GW_URL, WS, ADMIN_USER, SEED_EMAIL, SEED_PASSWORD.
 set -euo pipefail
 
-GW_URL="${GW_URL:-http://127.0.0.1:8080}"
+GW_URL="${GW_URL:-http://127.0.0.1:8391}"
 WS="${WS:-acme}"
 # The bootstrap admin — a workspace-admin member the node seeds at boot (CC_SEED_USER). Under the
 # default PasswordHash node (CC_PASSWORD_LOGIN=1) the node ALSO seeds this admin an argon2 credential
@@ -195,7 +195,7 @@ cat <<EOF
 ✔ seed complete — workspace '$WS' at $GW_URL
 
   ── Sign in as the ADMIN (workspace-admin) ──────────────────────────────────────
-    URL:      http://127.0.0.1:5173
+    URL:      http://127.0.0.1:5391
     email:    ${ADMIN_USER#user:}
     password: $ADMIN_PASSWORD
     (the node runs in real PasswordHash mode; this credential was seeded at boot —
@@ -204,14 +204,14 @@ cat <<EOF
   ── Real EMAIL + PASSWORD login (the guardian golden path) ──────────────────────
     A guardian sets her OWN password by accepting an invite, then logs in with it:
       1. open the accept link below → set a password
-      2. thereafter sign in at http://127.0.0.1:5173 with:
+      2. thereafter sign in at http://127.0.0.1:5391 with:
            email:    $GUARDIAN_EMAIL
            password: (the one she set on the accept page)
 EOF
 if [ -n "${ACCEPT_TOKEN:-}" ] && [ "$ACCEPT_TOKEN" != "null" ]; then
 cat <<EOF
     Accept link (dev — token recovered from the outbox effect):
-      http://127.0.0.1:5173/invite/$ACCEPT_TOKEN
+      http://127.0.0.1:5391/invite/$ACCEPT_TOKEN
 EOF
 else
 cat <<EOF

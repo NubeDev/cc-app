@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 //   login form → vite-dev-auth `/api/auth/login` → cc-node `/login` → token
 //   cookie → `/workspaces` (folded from the session) → mount the care ext.
 //
-// Prereq: the node (:8080) + the shell dev server (:5173) are running and the
+// Prereq: the node (:8391) + the shell dev server (:5391) are running and the
 // roster is seeded (`make dev` + `make seed`). The dev admin handle is `ada`
 // (→ `user:ada`, the seeded workspace-admin). The node runs in the default
 // PasswordHash mode, so the admin logs in with the seeded password (the node
