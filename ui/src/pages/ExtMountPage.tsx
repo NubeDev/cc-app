@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Home, LogOut } from "lucide-react";
-import { useT } from "../hooks/useT";
+import { useT, useLocaleSwitch } from "../hooks/useT";
 import { gateway } from "../api/gateway";
 import { authApi } from "../api/auth";
 import { useWorkspaces } from "../hooks/useWorkspaces";
@@ -44,6 +44,13 @@ export function ExtMountPage() {
   const wsResolved = workspaces !== null || wsError !== null;
   const role = workspaces?.find((w) => w.id === workspaceId)?.role ?? "";
 
+  // The host EN/ES toggle is the product-wide language switch; it MUST reach the
+  // ext (the ext has no other source of the caller's language). We forward it
+  // through the mount ctx as `useSession().locale` and remount on change (the
+  // effect deps below), so flipping EN/ES re-renders the whole care surface in
+  // the chosen language (CLAUDE.md rule 8).
+  const { locale } = useLocaleSwitch();
+
   // Loading until the remote's `mount` has run. IMPORTANT: the SDK's `mountScoped`
   // APPENDS a scoped `[data-ext-root]` into the host el (it never clears it), so a
   // skeleton placed INSIDE the mount target would never be removed — it must be a
@@ -70,7 +77,7 @@ export function ExtMountPage() {
         // variable (a fresh object literal at the call site would trip the
         // excess-property check on that lagging type). `workspace` is kept for
         // back-compat; `workspaceId` is the CareSession field name the ext uses.
-        const ctx = { workspace: workspaceId, workspaceId, role };
+        const ctx = { workspace: workspaceId, workspaceId, role, locale };
         teardown = remote.mount(el, ctx, bridge);
         setLoading(false);
       })
@@ -84,7 +91,7 @@ export function ExtMountPage() {
       cancelled = true;
       if (typeof teardown === "function") teardown();
     };
-  }, [workspaceId, role, wsResolved]);
+  }, [workspaceId, role, wsResolved, locale]);
 
   // Switch workspace: back to the picker (the shell's home). Tears down happens
   // via the effect cleanup when this route unmounts.

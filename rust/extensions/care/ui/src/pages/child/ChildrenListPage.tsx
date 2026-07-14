@@ -156,7 +156,7 @@ function ChildEditor({ initial, rooms, onDone }: { initial: ChildRow | null; roo
 
         <Section title={t("child.editor.safety")} hint={t("child.editor.safety_help")}>
           <Field label={t("child.allergies")} htmlFor="c-allergies" required hint={t("child.required.allergies_hint")}>
-            <Input id="c-allergies" value={allergies} onChange={(e) => setAllergies(e.target.value)} placeholder="peanuts, dairy" />
+            <Input id="c-allergies" value={allergies} onChange={(e) => setAllergies(e.target.value)} placeholder={t("child.allergies_placeholder")} />
           </Field>
           <Field label={t("child.medical_notes")} htmlFor="c-medical">
             <Textarea id="c-medical" value={medicalNotes} onChange={(e) => setMedicalNotes(e.target.value)} rows={3} />

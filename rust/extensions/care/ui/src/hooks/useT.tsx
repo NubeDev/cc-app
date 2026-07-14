@@ -1,5 +1,7 @@
 import { createContext, useContext, useMemo, useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import { useSession } from "@nube/ext-ui-sdk/runtime";
+import type { CareSession } from "./useCareSession";
 import en from "../locales/en.json";
 import es from "../locales/es.json";
 
@@ -27,13 +29,35 @@ type Ctx = {
 const Ctx = createContext<Ctx | null>(null);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
+  // The host session is the SOURCE of the locale: the shell resolves it (invite
+  // locale → guardian preference → center default) and forwards it through the
+  // mount ctx, which the SDK surfaces as `useSession().locale`. The ext MUST
+  // follow it, else a Spanish guardian sees an English product (CLAUDE.md rule
+  // 8). `LocaleProvider` sits inside the SDK's `RuntimeProvider`, so
+  // `useSession()` resolves here. `care.locale` in localStorage is only ever an
+  // EXPLICIT in-ext override (the EN/ES toggle) — absent that, session wins, and
+  // a later host-locale change re-syncs.
+  const session = useSession<CareSession>();
+  const sessionLocale: Locale = session?.locale === "es" ? "es" : "en";
+
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    const stored = typeof localStorage !== "undefined" ? localStorage.getItem("care.locale") : null;
+    if (stored === "en" || stored === "es") return stored;
+    return sessionLocale;
+  });
   const [theme, setThemeState] = useState<Theme>("system");
   const [systemDark, setSystemDark] = useState(false);
 
+  // The host EN/ES toggle is authoritative: when it changes, it remounts this
+  // provider with a fresh `session.locale`, and we adopt it — clearing any prior
+  // in-ext override so the host switch always wins. (The in-ext toggle still
+  // works within a single mount; a host flip resets to the host's choice.)
   useEffect(() => {
-    const stored = localStorage.getItem("care.locale") as Locale | null;
-    if (stored === "en" || stored === "es") setLocaleState(stored);
+    localStorage.setItem("care.locale", sessionLocale);
+    setLocaleState(sessionLocale);
+  }, [sessionLocale]);
+
+  useEffect(() => {
     const tStored = localStorage.getItem("care.theme") as Theme | null;
     if (tStored === "light" || tStored === "dark" || tStored === "system") setThemeState(tStored);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
