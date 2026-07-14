@@ -18,7 +18,7 @@
 # Overridable knobs (env): GW_URL, WS, ADMIN_USER, ADMIN_PASSWORD, TODAY, WEEK_MON.
 set -euo pipefail
 
-GW_URL="${GW_URL:-http://127.0.0.1:8080}"
+GW_URL="${GW_URL:-http://127.0.0.1:8391}"
 WS="${WS:-acme}"
 ADMIN_USER="${ADMIN_USER:-user:ada}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-cc-admin-1234}"
@@ -185,7 +185,7 @@ cat <<EOF
 
 ✔ demo-seed complete — workspace '$WS' at $GW_URL
 
-  Sign in at http://127.0.0.1:5173 as the admin (${ADMIN_USER#user:} / $ADMIN_PASSWORD),
+  Sign in at http://127.0.0.1:5391 as the admin (${ADMIN_USER#user:} / $ADMIN_PASSWORD),
   then explore the now-populated surfaces:
     • Attendance → Who's here     — 3 rooms with live child/staff counts + ratios
     • Attendance → Roster         — pick a room; children show present/out; tap to check in/out

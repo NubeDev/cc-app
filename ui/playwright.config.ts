@@ -2,10 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 // Playwright drives the REAL shell against the REAL node (mobile-shell-scope
 // §"Rule 9": UI tests run against a real node — no mocks). The dev server on
-// :5173 (with the vite-dev-auth seam) + the cc-node gateway on :8080 must be
+// :5391 (with the vite-dev-auth seam) + the cc-node gateway on :8391 must be
 // running: `make dev` (or the node + `pnpm dev`) then `make e2e-ui`. The base
 // URL points at the running shell; specs never stub the gateway.
-const BASE_URL = process.env.CC_UI_URL || "http://127.0.0.1:5173";
+const BASE_URL = process.env.CC_UI_URL || "http://127.0.0.1:5391";
 
 export default defineConfig({
   testDir: "./e2e",

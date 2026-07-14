@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
 // placeholders). The SDK contract is render functions `(ctx, bridge) => ReactNode`
 // + a CSS-string `styles` — this asserts the mount actually produces DOM.
 //
-// Prereq: `make dev` (node :8080 + shell :5173) + `make seed`.
+// Prereq: `make dev` (node :8391 + shell :5391) + `make seed`.
 
 const ADMIN_HANDLE = process.env.CC_ADMIN_HANDLE || "ada";
 const ADMIN_PASSWORD = process.env.CC_ADMIN_PASSWORD || "cc-admin-1234";
